@@ -107,6 +107,7 @@
             z-index: 1000;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             display: none;
+            min-width: 120px;
         }
         .seat-menu button {
             display: block;
@@ -117,13 +118,45 @@
             background: none;
             text-align: left;
             cursor: pointer;
+            font-size: 14px;
         }
         .seat-menu button:hover {
             background: #f0f0f0;
         }
+        .seat-menu hr {
+            margin: 5px 0;
+            border: none;
+            border-top: 1px solid #ddd;
+        }
+        .top-menu {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        .top-menu button {
+            margin: 5px;
+            padding: 8px 15px;
+            font-size: 14px;
+            border-radius: 5px;
+            border: none;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            cursor: pointer;
+        }
+        .top-menu button:hover {
+            background: white;
+        }
     </style>
 </head>
 <body>
+    <!-- 상단 메뉴 -->
+    <div class="top-menu">
+        <button onclick="saveLayout()">저장</button>
+        <button onclick="showSettings()">설정</button>
+        <button onclick="resetLayout()">초기화</button>
+    </div>
+
     <div class="container">
         <h2 class="text-center mb-4">자리 배치 프로그램</h2>
         
@@ -217,6 +250,44 @@
         </div>
     </div>
 
+    <!-- 설정 모달 -->
+    <div class="modal fade" id="settingsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">설정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">자리 배치 방식</label>
+                        <select class="form-control" id="layoutType">
+                            <option value="random">랜덤</option>
+                            <option value="gender">성별 구분</option>
+                            <option value="eyestright">시력 고려</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">자리 수</label>
+                        <input type="number" class="form-control" id="seatCount" value="32" min="1" max="40">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">행 수</label>
+                        <input type="number" class="form-control" id="rowCount" value="8" min="1" max="10">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">열 수</label>
+                        <input type="number" class="form-control" id="colCount" value="4" min="1" max="5">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="applySettings()">적용</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentLayout = [];
@@ -239,6 +310,12 @@
                     <button onclick="manualAssign(${i})">수동 지정</button>
                     <button onclick="manualSwap(${i})">수동 바꾸기</button>
                     <button onclick="randomSwap(${i})">자리 바꾸기</button>
+                    <hr>
+                    <button onclick="showStudentInfo(${i})">학생 정보</button>
+                    <button onclick="editStudentInfo(${i})">정보 수정</button>
+                    <hr>
+                    <button onclick="deleteStudent(${i})">학생 삭제</button>
+                    <button onclick="clearSeat(${i})">자리 비우기</button>
                 `;
                 seat.appendChild(menu);
                 
@@ -311,6 +388,58 @@
                 const temp = currentLayout[index];
                 currentLayout[index] = students[randomIndex];
                 currentLayout[students.indexOf(students[randomIndex])] = temp;
+                updateSeatGrid();
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 학생 정보 표시
+        function showStudentInfo(index) {
+            const student = currentLayout[index];
+            if (student) {
+                alert(`이름: ${student.name}\n성별: ${student.gender || '미입력'}\n시력: ${student.eyestright || '미입력'}`);
+            } else {
+                alert('이 자리는 비어있습니다.');
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 학생 정보 수정
+        function editStudentInfo(index) {
+            const student = currentLayout[index];
+            if (student) {
+                const name = prompt('이름:', student.name);
+                if (name) {
+                    const gender = prompt('성별 (남/여):', student.gender || '');
+                    const eyestright = prompt('시력 (정상/이상):', student.eyestright || '');
+                    
+                    currentLayout[index] = {
+                        ...student,
+                        name: name,
+                        gender: gender,
+                        eyestright: eyestright
+                    };
+                    updateSeatGrid();
+                }
+            } else {
+                alert('이 자리는 비어있습니다.');
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 학생 삭제
+        function deleteStudent(index) {
+            if (confirm('정말로 이 학생을 삭제하시겠습니까?')) {
+                currentLayout[index] = null;
+                updateSeatGrid();
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 자리 비우기
+        function clearSeat(index) {
+            if (confirm('이 자리를 비우시겠습니까?')) {
+                currentLayout[index] = null;
                 updateSeatGrid();
             }
             document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
@@ -467,6 +596,125 @@
                 const student = currentLayout[index];
                 seat.textContent = student ? student.name : '';
             });
+        }
+
+        // 설정 표시
+        function showSettings() {
+            new bootstrap.Modal(document.getElementById('settingsModal')).show();
+        }
+
+        // 설정 적용
+        function applySettings() {
+            const layoutType = document.getElementById('layoutType').value;
+            const seatCount = parseInt(document.getElementById('seatCount').value);
+            const rowCount = parseInt(document.getElementById('rowCount').value);
+            const colCount = parseInt(document.getElementById('colCount').value);
+
+            // 자리 그리드 재설정
+            const grid = document.getElementById('seatGrid');
+            grid.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
+            grid.innerHTML = '';
+
+            for (let i = 0; i < seatCount; i++) {
+                const seat = document.createElement('div');
+                seat.className = 'seat';
+                seat.dataset.index = i;
+                seat.onclick = (e) => showSeatMenu(e, i);
+                
+                const menu = document.createElement('div');
+                menu.className = 'seat-menu';
+                menu.innerHTML = `
+                    <button onclick="manualAssign(${i})">수동 지정</button>
+                    <button onclick="manualSwap(${i})">수동 바꾸기</button>
+                    <button onclick="randomSwap(${i})">자리 바꾸기</button>
+                    <hr>
+                    <button onclick="showStudentInfo(${i})">학생 정보</button>
+                    <button onclick="editStudentInfo(${i})">정보 수정</button>
+                    <hr>
+                    <button onclick="deleteStudent(${i})">학생 삭제</button>
+                    <button onclick="clearSeat(${i})">자리 비우기</button>
+                `;
+                seat.appendChild(menu);
+                
+                grid.appendChild(seat);
+            }
+
+            // 레이아웃 타입에 따른 자리 섞기
+            if (layoutType === 'random') {
+                shuffleSeats();
+            } else if (layoutType === 'gender') {
+                shuffleByGender();
+            } else if (layoutType === 'eyestright') {
+                shuffleByEyestright();
+            }
+
+            document.getElementById('settingsModal').querySelector('.btn-close').click();
+        }
+
+        // 성별 구분 자리 섞기
+        function shuffleByGender() {
+            fetch('/api/students?' + new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            }))
+            .then(response => response.json())
+            .then(students => {
+                const male = students.filter(s => s.gender === '남');
+                const female = students.filter(s => s.gender === '여');
+                
+                // 남학생은 왼쪽, 여학생은 오른쪽
+                const shuffled = [
+                    ...male.sort(() => Math.random() - 0.5),
+                    ...female.sort(() => Math.random() - 0.5)
+                ];
+                
+                currentLayout = shuffled.map((student, index) => ({
+                    row: Math.floor(index / 4) + 1,
+                    col: (index % 4) + 1,
+                    name: student.name,
+                    gender: student.gender,
+                    eyestright: student.eyestright
+                }));
+                updateSeatGrid();
+            });
+        }
+
+        // 시력 고려 자리 섞기
+        function shuffleByEyestright() {
+            fetch('/api/students?' + new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            }))
+            .then(response => response.json())
+            .then(students => {
+                const normal = students.filter(s => s.eyestright === '정상');
+                const abnormal = students.filter(s => s.eyestright === '이상');
+                
+                // 시력이 좋은 학생은 뒤쪽, 나쁜 학생은 앞쪽
+                const shuffled = [
+                    ...abnormal.sort(() => Math.random() - 0.5),
+                    ...normal.sort(() => Math.random() - 0.5)
+                ];
+                
+                currentLayout = shuffled.map((student, index) => ({
+                    row: Math.floor(index / 4) + 1,
+                    col: (index % 4) + 1,
+                    name: student.name,
+                    gender: student.gender,
+                    eyestright: student.eyestright
+                }));
+                updateSeatGrid();
+            });
+        }
+
+        // 초기화
+        function resetLayout() {
+            if (confirm('정말로 모든 자리를 초기화하시겠습니까?')) {
+                currentLayout = Array(32).fill(null);
+                updateSeatGrid();
+            }
         }
 
         // 초기화
