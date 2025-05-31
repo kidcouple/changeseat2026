@@ -54,6 +54,7 @@
             -webkit-tap-highlight-color: transparent;
             user-select: none;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
         }
         .seat.selected {
             background: #ffd700;
@@ -96,6 +97,29 @@
         }
         .card {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .seat-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 5px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            display: none;
+        }
+        .seat-menu button {
+            display: block;
+            width: 100%;
+            padding: 5px 10px;
+            margin: 2px 0;
+            border: none;
+            background: none;
+            text-align: left;
+            cursor: pointer;
+        }
+        .seat-menu button:hover {
+            background: #f0f0f0;
         }
     </style>
 </head>
@@ -197,6 +221,7 @@
     <script>
         let currentLayout = [];
         let selectedSeat = null;
+        let menuSeat = null;
 
         // 자리 그리드 초기화
         function initSeatGrid() {
@@ -206,23 +231,98 @@
                 const seat = document.createElement('div');
                 seat.className = 'seat';
                 seat.dataset.index = i;
-                seat.onclick = () => selectSeat(i);
+                seat.onclick = (e) => showSeatMenu(e, i);
+                
+                const menu = document.createElement('div');
+                menu.className = 'seat-menu';
+                menu.innerHTML = `
+                    <button onclick="manualAssign(${i})">수동 지정</button>
+                    <button onclick="manualSwap(${i})">수동 바꾸기</button>
+                    <button onclick="randomSwap(${i})">자리 바꾸기</button>
+                `;
+                seat.appendChild(menu);
+                
                 grid.appendChild(seat);
             }
         }
 
-        // 자리 선택
-        function selectSeat(index) {
-            if (selectedSeat !== null) {
-                document.querySelector(`.seat[data-index="${selectedSeat}"]`).classList.remove('selected');
+        // 자리 메뉴 표시
+        function showSeatMenu(event, index) {
+            event.stopPropagation();
+            
+            // 다른 메뉴 닫기
+            if (menuSeat !== null && menuSeat !== index) {
+                document.querySelector(`.seat[data-index="${menuSeat}"] .seat-menu`).style.display = 'none';
             }
-            if (selectedSeat === index) {
-                selectedSeat = null;
+            
+            const menu = document.querySelector(`.seat[data-index="${index}"] .seat-menu`);
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+                menuSeat = null;
             } else {
-                selectedSeat = index;
-                document.querySelector(`.seat[data-index="${index}"]`).classList.add('selected');
+                menu.style.display = 'block';
+                menuSeat = index;
+                
+                // 메뉴 위치 조정
+                const seat = document.querySelector(`.seat[data-index="${index}"]`);
+                const rect = seat.getBoundingClientRect();
+                menu.style.left = rect.width + 'px';
+                menu.style.top = '0px';
             }
         }
+
+        // 수동 지정
+        function manualAssign(index) {
+            const name = prompt('학생 이름을 입력하세요:');
+            if (name) {
+                currentLayout[index] = {
+                    row: Math.floor(index / 4) + 1,
+                    col: (index % 4) + 1,
+                    name: name
+                };
+                updateSeatGrid();
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 수동 바꾸기
+        function manualSwap(index) {
+            if (selectedSeat === null) {
+                selectedSeat = index;
+                document.querySelector(`.seat[data-index="${index}"]`).classList.add('selected');
+            } else {
+                // 자리 교환
+                const temp = currentLayout[selectedSeat];
+                currentLayout[selectedSeat] = currentLayout[index];
+                currentLayout[index] = temp;
+                
+                document.querySelector(`.seat[data-index="${selectedSeat}"]`).classList.remove('selected');
+                selectedSeat = null;
+                updateSeatGrid();
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 자리 바꾸기
+        function randomSwap(index) {
+            const students = currentLayout.filter(s => s !== null);
+            if (students.length > 1) {
+                const randomIndex = Math.floor(Math.random() * students.length);
+                const temp = currentLayout[index];
+                currentLayout[index] = students[randomIndex];
+                currentLayout[students.indexOf(students[randomIndex])] = temp;
+                updateSeatGrid();
+            }
+            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        }
+
+        // 문서 클릭 시 메뉴 닫기
+        document.addEventListener('click', function() {
+            if (menuSeat !== null) {
+                document.querySelector(`.seat[data-index="${menuSeat}"] .seat-menu`).style.display = 'none';
+                menuSeat = null;
+            }
+        });
 
         // 자리 섞기
         function shuffleSeats() {
