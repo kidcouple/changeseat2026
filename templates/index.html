@@ -30,8 +30,9 @@
         
         #seatFrame {
             position: relative;
-            width: 100%;
-            height: 100vh;
+            width: 1024px;
+            height: 768px;
+            margin: 0 auto;
             cursor: default;
             background-image: url("{{ url_for('static', filename='class_main.png') }}");
             background-size: cover;
@@ -211,10 +212,11 @@
         
         #videoContainer {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 1024px;
+            height: 768px;
             background: rgba(0, 0, 0, 0.8);
             display: none;
             z-index: 1000;
@@ -227,11 +229,9 @@
         }
         
         .button-area {
-            position: absolute;
             cursor: pointer;
             z-index: 100;
             background: transparent;
-            transform-origin: top left;
         }
         
         .button-area:hover {
@@ -374,15 +374,15 @@
 <body>
     <div id="seatFrame">
         <!-- 버튼 영역 -->
-        <div id="shuffle" class="button-area" onclick="onShuffleButtonClick()"></div>
-        <div id="designate" class="button-area" onclick="onManualDesignateClick()"></div>
-        <div id="swap" class="button-area" onclick="onManualSwapClick()"></div>
-        <div id="layout" class="button-area" onclick="askLayoutMode()"></div>
-        <div id="save" class="button-area" onclick="onSaveLayoutClick()"></div>
-        <div id="register" class="button-area" onclick="onRegisterStudentClick()"></div>
-        <div id="view" class="button-area" onclick="onViewDbClick()"></div>
-        <div id="reset" class="button-area" onclick="onResetDataClick()"></div>
-        <div id="settings" class="button-area" onclick="onSettingsClick()"></div>
+        <div id="shuffle" class="button-area" style="position: absolute; left: 101px; top: 69px; width: 45px; height: 20px;" onclick="onShuffleButtonClick()"></div>
+        <div id="designate" class="button-area" style="position: absolute; left: 186px; top: 69px; width: 42px; height: 15px;" onclick="onManualDesignateClick()"></div>
+        <div id="swap" class="button-area" style="position: absolute; left: 270px; top: 61px; width: 45px; height: 35px;" onclick="onManualSwapClick()"></div>
+        <div id="layout" class="button-area" style="position: absolute; left: 355px; top: 61px; width: 39px; height: 33px;" onclick="askLayoutMode()"></div>
+        <div id="save" class="button-area" style="position: absolute; left: 440px; top: 61px; width: 39px; height: 35px;" onclick="onSaveLayoutClick()"></div>
+        <div id="register" class="button-area" style="position: absolute; left: 719px; top: 62px; width: 44px; height: 35px;" onclick="onRegisterStudentClick()"></div>
+        <div id="view" class="button-area" style="position: absolute; left: 806px; top: 60px; width: 40px; height: 35px;" onclick="onViewDbClick()"></div>
+        <div id="reset" class="button-area" style="position: absolute; left: 890px; top: 63px; width: 40px; height: 37px;" onclick="onResetDataClick()"></div>
+        <div id="settings" class="button-area" style="position: absolute; left: 974px; top: 61px; width: 39px; height: 37px;" onclick="onSettingsClick()"></div>
     </div>
     
     <!-- 비디오 컨테이너 -->
