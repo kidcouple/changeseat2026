@@ -546,6 +546,13 @@
             motto: '',
             countdownText: ''
         };
+        
+        // 학교 정보 전역 변수
+        let schoolInfo = {
+            school_name: '',
+            grade: '',
+            class_num: ''
+        };
 
         // 학교 정보 저장
         function saveSchoolInfo() {
@@ -576,7 +583,12 @@
                 }
                 return response.json();
             })
-            .then(() => {
+            .then(data => {
+                // 전역 변수에 학교 정보 저장
+                schoolInfo.school_name = data.school_name;
+                schoolInfo.grade = data.grade;
+                schoolInfo.class_num = data.class_num;
+                
                 closeModal('schoolInfoModal');
                 loadStudentData();
             })
@@ -749,9 +761,9 @@
         // 자리 섞기
         function shuffleSeats() {
             fetch('/api/students?' + new URLSearchParams({
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value
+                school_name: schoolInfo.school_name,
+                grade: schoolInfo.grade,
+                class_num: schoolInfo.class_num
             }))
             .then(response => {
                 if (!response.ok) {
@@ -890,11 +902,7 @@
             }
             
             // 학교 정보 확인
-            const schoolName = document.getElementById('schoolName').value;
-            const grade = document.getElementById('grade').value;
-            const classNum = document.getElementById('classNum').value;
-            
-            if (!schoolName || !grade || !classNum) {
+            if (!schoolInfo.school_name || !schoolInfo.grade || !schoolInfo.class_num) {
                 alert('학교 정보가 입력되지 않았습니다.');
                 return;
             }
@@ -909,9 +917,9 @@
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    school_name: schoolName,
-                    grade: grade,
-                    class_num: classNum,
+                    school_name: schoolInfo.school_name,
+                    grade: schoolInfo.grade,
+                    class_num: schoolInfo.class_num,
                     seats: currentLayout.map(seat => ({
                         student_name: seat.name,
                         row: seat.row,
@@ -934,9 +942,9 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        school_name: schoolName,
-                        grade: grade,
-                        class_num: classNum,
+                        school_name: schoolInfo.school_name,
+                        grade: schoolInfo.grade,
+                        class_num: schoolInfo.class_num,
                         layout_mode: settings.layoutMode,
                         num_columns: settings.numColumns,
                         separate_gender: settings.separateGender,
@@ -972,9 +980,9 @@
         // DB 보기 버튼 클릭
         function onViewDbClick() {
             fetch('/api/students?' + new URLSearchParams({
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value
+                school_name: schoolInfo.school_name,
+                grade: schoolInfo.grade,
+                class_num: schoolInfo.class_num
             }))
             .then(response => {
                 if (!response.ok) {
@@ -1141,9 +1149,9 @@
         // 학생 데이터 로드
         function loadStudentData() {
             fetch('/api/students?' + new URLSearchParams({
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value
+                school_name: schoolInfo.school_name,
+                grade: schoolInfo.grade,
+                class_num: schoolInfo.class_num
             }))
             .then(response => response.json())
             .then(students => {

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, session
 from flask_sqlalchemy import SQLAlchemy
 import os
 import pandas as pd
@@ -7,6 +7,7 @@ from datetime import datetime
 app = Flask(__name__, static_folder='static')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///seats.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.secret_key = os.urandom(24)  # session을 위한 secret key 추가
 db = SQLAlchemy(app)
 
 # 모델 정의
@@ -194,7 +195,12 @@ def save_school_info():
         session['grade'] = grade
         session['class_num'] = class_num
         
-        return jsonify({'message': '학교 정보가 저장되었습니다.'})
+        return jsonify({
+            'message': '학교 정보가 저장되었습니다.',
+            'school_name': school_name,
+            'grade': grade,
+            'class_num': class_num
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
