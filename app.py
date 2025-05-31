@@ -178,6 +178,26 @@ def export_students():
     
     return send_from_directory('.', filename, as_attachment=True)
 
+@app.route('/api/school_info', methods=['POST'])
+def save_school_info():
+    try:
+        data = request.get_json()
+        school_name = data.get('school_name')
+        grade = data.get('grade')
+        class_num = data.get('class_num')
+        
+        if not all([school_name, grade, class_num]):
+            return jsonify({'error': '모든 정보를 입력해주세요.'}), 400
+            
+        # 학교 정보 저장 (세션에 저장)
+        session['school_name'] = school_name
+        session['grade'] = grade
+        session['class_num'] = class_num
+        
+        return jsonify({'message': '학교 정보가 저장되었습니다.'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)

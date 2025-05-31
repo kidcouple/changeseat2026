@@ -547,6 +547,50 @@
             countdownText: ''
         };
 
+        // 학교 정보 저장
+        function saveSchoolInfo() {
+            const schoolName = document.getElementById('schoolName').value.trim();
+            const grade = document.getElementById('grade').value.trim();
+            const classNum = document.getElementById('classNum').value.trim();
+            
+            if (!schoolName || !grade || !classNum) {
+                alert('모든 정보를 입력해주세요.');
+                return;
+            }
+            
+            // 학교 정보 저장
+            fetch('/api/school_info', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    school_name: schoolName,
+                    grade: grade,
+                    class_num: classNum
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('학교 정보 저장 실패');
+                }
+                return response.json();
+            })
+            .then(() => {
+                closeModal('schoolInfoModal');
+                loadStudentData();
+            })
+            .catch(error => {
+                console.error('저장 중 오류 발생:', error);
+                alert(`저장 중 오류가 발생했습니다: ${error.message}`);
+            });
+        }
+
+        // 모달 닫기
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
         // 효과음 재생
         function playEffectSound() {
             const audio = new Audio("{{ url_for('static', filename='effect_1.m4a') }}");
