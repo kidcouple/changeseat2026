@@ -10,448 +10,697 @@
     <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icon-192x192.png') }}">
     <title>자리 배치 프로그램</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        @font-face {
+            font-family: 'RIX모던고딕B';
+            src: url("{{ url_for('static', filename='RIX모던고딕B.ttf') }}") format('truetype');
+        }
+        
         body {
-            padding: 10px;
-            background-color: #f8f9fa;
-            -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
             background-image: url("{{ url_for('static', filename='class_main.png') }}");
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
             min-height: 100vh;
+            font-family: 'RIX모던고딕B', sans-serif;
+            overflow: hidden;
         }
-        .container {
-            background-color: rgba(255, 255, 255, 0.9);
-            border-radius: 15px;
-            padding: 20px;
-            margin-top: 20px;
-            margin-bottom: 20px;
+        
+        #seatFrame {
+            position: relative;
+            width: 1024px;
+            height: 768px;
+            margin: 0 auto;
+            cursor: default;
         }
-        .seat-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin: 20px 0;
-            touch-action: manipulation;
-            background-color: rgba(255, 255, 255, 0.8);
-            padding: 15px;
-            border-radius: 10px;
-        }
+        
         .seat {
-            aspect-ratio: 1;
-            background: white;
-            border: 2px solid #4A90E2;
-            border-radius: 8px;
+            position: absolute;
+            width: 60px;
+            height: 40px;
+            border: 1px solid #888;
+            background: #fff;
+            font-size: 12pt;
+            font-family: 'RIX모던고딕B', sans-serif;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
-            padding: 5px;
-            text-align: center;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-            user-select: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            position: relative;
-        }
-        .seat.selected {
-            background: #ffd700;
-            border-color: #ff8c00;
-        }
-        .btn {
-            margin: 5px;
-            padding: 10px 20px;
-            font-size: 16px;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .modal-dialog {
-            margin: 10px;
-        }
-        @media (max-width: 576px) {
-            .seat {
-                font-size: 12px;
-            }
-            .btn {
-                font-size: 14px;
-                padding: 8px 16px;
-            }
-        }
-        /* iOS 스타일 개선 */
-        input, select {
-            -webkit-appearance: none;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        /* 스크롤 개선 */
-        .container {
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-        }
-        h2 {
-            color: #4A90E2;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-        }
-        .card {
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .seat-menu {
-            position: absolute;
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 5px;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            display: none;
-            min-width: 120px;
-        }
-        .seat-menu button {
-            display: block;
-            width: 100%;
-            padding: 5px 10px;
-            margin: 2px 0;
-            border: none;
-            background: none;
-            text-align: left;
             cursor: pointer;
-            font-size: 14px;
+            user-select: none;
+            transition: all 0.3s ease;
+            border-radius: 4px;
         }
-        .seat-menu button:hover {
+        
+        .seat:hover {
             background: #f0f0f0;
         }
-        .seat-menu hr {
-            margin: 5px 0;
-            border: none;
-            border-top: 1px solid #ddd;
+        
+        .seat.selected {
+            background-color: #ffd700;
+            border: 2px solid #ff8c00;
         }
-        .top-menu {
+        
+        .seat.fixed {
+            background-color: yellow;
+            border: 2px solid #f90;
+        }
+        
+        .modal {
+            display: none;
             position: fixed;
-            top: 10px;
-            right: 10px;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
         }
-        .top-menu button {
-            margin: 5px;
+        
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            min-width: 300px;
+            font-family: 'RIX모던고딕B', sans-serif;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .modal-title {
+            margin: 0;
+            font-size: 18px;
+            font-family: 'RIX모던고딕B', sans-serif;
+        }
+        
+        .close {
+            cursor: pointer;
+            font-size: 24px;
+            color: #666;
+        }
+        
+        .close:hover {
+            color: #000;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 12pt;
+            font-family: 'RIX모던고딕B', sans-serif;
+        }
+        
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12pt;
+            font-family: 'RIX모던고딕B', sans-serif;
+        }
+        
+        .btn {
             padding: 8px 15px;
-            font-size: 14px;
-            border-radius: 5px;
             border: none;
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 5px;
+            font-size: 12pt;
+            font-family: 'RIX모던고딕B', sans-serif;
+        }
+        
+        .btn-primary {
+            background: #4A90E2;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #357ABD;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-family: 'RIX모던고딕B', sans-serif;
+        }
+        
+        .table th,
+        .table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            font-size: 12pt;
+        }
+        
+        .table th {
+            background: #f8f9fa;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .table tr:hover {
+            background: #f5f5f5;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .action-buttons button {
+            padding: 4px 8px;
+            font-size: 11pt;
+        }
+        
+        #videoContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            z-index: 1000;
+        }
+        
+        #countdownVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .button-area {
+            position: absolute;
+            width: 40px;
+            height: 30px;
+            cursor: pointer;
+            z-index: 100;
+        }
+        
+        .button-area:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .shake {
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+            20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .shaking {
+            animation: shake 0.5s;
+        }
+        .layout-dialog {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .layout-dialog h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .radio-group {
+            margin-bottom: 20px;
+        }
+        .radio-option {
+            margin-bottom: 10px;
+        }
+        .button-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .student-dialog {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            width: 300px;
+        }
+        .student-dialog h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .input-group label {
+            width: 60px;
+            margin-right: 10px;
+        }
+        .input-group input,
+        .input-group select {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .button-group {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .student-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        .student-table th,
+        .student-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .student-table th {
+            background: #f8f9fa;
             cursor: pointer;
         }
-        .top-menu button:hover {
+        .student-table tr:hover {
+            background: #f5f5f5;
+        }
+        .settings-dialog {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            width: 400px;
+        }
+        .settings-dialog h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .settings-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .settings-group label {
+            width: 150px;
+            margin-right: 10px;
+        }
+        .settings-group input[type="text"],
+        .settings-group select,
+        .settings-group input[type="number"] {
+            flex: 1;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .settings-group input[type="checkbox"] {
+            margin-right: 5px;
         }
     </style>
 </head>
 <body>
-    <!-- 상단 메뉴 -->
-    <div class="top-menu">
-        <button onclick="saveLayout()">저장</button>
-        <button onclick="showSettings()">설정</button>
-        <button onclick="resetLayout()">초기화</button>
+    <div id="seatFrame">
+        <!-- 버튼 영역 -->
+        <div class="button-area" style="left: 101px; top: 69px; width: 45px; height: 20px;" onclick="onShuffleButtonClick()"></div>
+        <div class="button-area" style="left: 186px; top: 69px; width: 42px; height: 15px;" onclick="onManualDesignateClick()"></div>
+        <div class="button-area" style="left: 270px; top: 61px; width: 45px; height: 35px;" onclick="onManualSwapClick()"></div>
+        <div class="button-area" style="left: 355px; top: 61px; width: 39px; height: 33px;" onclick="askLayoutMode()"></div>
+        <div class="button-area" style="left: 440px; top: 61px; width: 39px; height: 35px;" onclick="onSaveLayoutClick()"></div>
+        <div class="button-area" style="left: 719px; top: 62px; width: 44px; height: 35px;" onclick="onRegisterStudentClick()"></div>
+        <div class="button-area" style="left: 806px; top: 60px; width: 40px; height: 35px;" onclick="onViewDbClick()"></div>
+        <div class="button-area" style="left: 890px; top: 63px; width: 40px; height: 37px;" onclick="onResetDataClick()"></div>
+        <div class="button-area" style="left: 974px; top: 61px; width: 39px; height: 37px;" onclick="onSettingsClick()"></div>
+    </div>
+    
+    <!-- 비디오 컨테이너 -->
+    <div id="videoContainer">
+        <video id="countdownVideo" autoplay>
+            <source src="{{ url_for('static', filename='54321카운트다운.mp4') }}" type="video/mp4">
+        </video>
     </div>
 
-    <div class="container">
-        <h2 class="text-center mb-4">자리 배치 프로그램</h2>
-        
-        <!-- 학교 정보 -->
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">학교 정보</h5>
-                <div class="row">
-                    <div class="col">
-                        <input type="text" class="form-control" id="schoolName" placeholder="학교명">
-                    </div>
-                    <div class="col">
-                        <input type="number" class="form-control" id="grade" placeholder="학년">
-                    </div>
-                    <div class="col">
-                        <input type="number" class="form-control" id="classNum" placeholder="반">
-                    </div>
-                </div>
+    <!-- 학교 정보 모달 -->
+    <div id="schoolInfoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">학교 정보 입력</h3>
+                <span class="close">&times;</span>
             </div>
-        </div>
-
-        <!-- 버튼 그룹 -->
-        <div class="d-grid gap-2">
-            <button class="btn btn-primary" onclick="shuffleSeats()">자리 섞기</button>
-            <button class="btn btn-success" onclick="saveLayout()">자리 저장</button>
-            <button class="btn btn-info" onclick="showStudentList()">학생 목록</button>
-            <button class="btn btn-warning" onclick="showAddStudent()">학생 추가</button>
-            <button class="btn btn-secondary" onclick="showImportExport()">엑셀 가져오기/내보내기</button>
-        </div>
-
-        <!-- 자리 배치 -->
-        <div class="seat-grid" id="seatGrid"></div>
-    </div>
-
-    <!-- 학생 추가 모달 -->
-    <div class="modal fade" id="addStudentModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">학생 추가</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <input type="text" class="form-control" id="studentName" placeholder="이름">
-                    </div>
-                    <div class="mb-3">
-                        <select class="form-control" id="studentGender">
-                            <option value="남">남</option>
-                            <option value="여">여</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <select class="form-control" id="studentEyestright">
-                            <option value="정상">정상</option>
-                            <option value="이상">이상</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-primary" onclick="addStudent()">추가</button>
-                </div>
+            <div class="form-group">
+                <label>학교명</label>
+                <input type="text" id="schoolName">
             </div>
+            <div class="form-group">
+                <label>학년</label>
+                <input type="number" id="grade">
+            </div>
+            <div class="form-group">
+                <label>반</label>
+                <input type="number" id="classNum">
+            </div>
+            <button class="btn btn-primary" onclick="saveSchoolInfo()">저장</button>
+            <button class="btn btn-secondary" onclick="closeModal('schoolInfoModal')">취소</button>
         </div>
     </div>
 
-    <!-- 엑셀 가져오기/내보내기 모달 -->
-    <div class="modal fade" id="importExportModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">엑셀 가져오기/내보내기</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">엑셀 파일 가져오기</label>
-                        <input type="file" class="form-control" id="excelFile" accept=".xlsx">
-                    </div>
-                    <div class="mb-3">
-                        <button class="btn btn-primary w-100" onclick="importExcel()">가져오기</button>
-                    </div>
-                    <hr>
-                    <div class="mb-3">
-                        <label class="form-label">엑셀 파일 내보내기</label>
-                        <button class="btn btn-success w-100" onclick="exportExcel()">내보내기</button>
-                    </div>
-                </div>
+    <!-- 학생 등록 모달 -->
+    <div id="registerStudentModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">학생 등록</h3>
+                <span class="close">&times;</span>
             </div>
+            <div class="form-group">
+                <label>이름:</label>
+                <input type="text" id="studentName">
+            </div>
+            <div class="form-group">
+                <label>성별:</label>
+                <select id="studentGender">
+                    <option value="남">남</option>
+                    <option value="여">여</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>시력:</label>
+                <select id="studentEyesight">
+                    <option value="정상">정상</option>
+                    <option value="이상">이상</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="registerStudent()">등록</button>
+            <button class="btn btn-secondary" onclick="closeModal('registerStudentModal')">취소</button>
+        </div>
+    </div>
+
+    <!-- 학생 목록 모달 -->
+    <div id="viewDbModal" class="modal">
+        <div class="modal-content" style="width: 80%; max-width: 800px;">
+            <div class="modal-header">
+                <h3 class="modal-title">학생 목록</h3>
+                <span class="close">&times;</span>
+            </div>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable(0)">이름</th>
+                        <th onclick="sortTable(1)">성별</th>
+                        <th onclick="sortTable(2)">시력</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody id="studentList"></tbody>
+            </table>
         </div>
     </div>
 
     <!-- 설정 모달 -->
-    <div class="modal fade" id="settingsModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">설정</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">자리 배치 방식</label>
-                        <select class="form-control" id="layoutType">
-                            <option value="random">랜덤</option>
-                            <option value="gender">성별 구분</option>
-                            <option value="eyestright">시력 고려</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">자리 수</label>
-                        <input type="number" class="form-control" id="seatCount" value="32" min="1" max="40">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">행 수</label>
-                        <input type="number" class="form-control" id="rowCount" value="8" min="1" max="10">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">열 수</label>
-                        <input type="number" class="form-control" id="colCount" value="4" min="1" max="5">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                    <button type="button" class="btn btn-primary" onclick="applySettings()">적용</button>
-                </div>
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">설정</h3>
+                <span class="close">&times;</span>
             </div>
+            <div class="form-group">
+                <label>자리 배치 방식:</label>
+                <select id="layoutMode">
+                    <option value="열">열</option>
+                    <option value="행">행</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>열 수:</label>
+                <input type="number" id="numColumns" min="1" max="10" value="4">
+            </div>
+            <div class="form-group">
+                <label>성별 구분:</label>
+                <input type="checkbox" id="separateGender" checked>
+            </div>
+            <div class="form-group">
+                <label>시력 고려:</label>
+                <input type="checkbox" id="considerEyesight">
+            </div>
+            <div class="form-group">
+                <label>같은 자리 방지:</label>
+                <input type="checkbox" id="preventSameSeat">
+            </div>
+            <div class="form-group">
+                <label>같은 자리 방지 횟수:</label>
+                <input type="number" id="preventSameSeatCount" min="1" max="10" value="3">
+            </div>
+            <div class="form-group">
+                <label>좌우명:</label>
+                <input type="text" id="motto">
+            </div>
+            <div class="form-group">
+                <label>카운트다운 텍스트:</label>
+                <input type="text" id="countdownText">
+            </div>
+            <button class="btn btn-primary" onclick="saveSettings()">저장</button>
+            <button class="btn btn-secondary" onclick="closeModal('settingsModal')">취소</button>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <div id="layoutDialog" class="layout-dialog">
+        <h3>자리 배치 방식 선택</h3>
+        <div class="radio-group">
+            <div class="radio-option">
+                <input type="radio" id="columnLayout" name="layoutMode" value="열" checked>
+                <label for="columnLayout">열 방향</label>
+            </div>
+            <div class="radio-option">
+                <input type="radio" id="rowLayout" name="layoutMode" value="행">
+                <label for="rowLayout">행 방향</label>
+            </div>
+        </div>
+        <div class="button-group">
+            <button onclick="confirmLayoutMode()">확인</button>
+            <button onclick="closeLayoutDialog()">취소</button>
+        </div>
+    </div>
+
     <script>
+        // 전역 변수
         let currentLayout = [];
         let selectedSeat = null;
-        let menuSeat = null;
+        let manualDesignateMode = false;
+        let manualSwapMode = false;
+        let fixedSeats = new Map();
+        let settings = {
+            layoutMode: '열',
+            numColumns: 4,
+            separateGender: true,
+            considerEyesight: false,
+            preventSameSeat: false,
+            preventSameSeatCount: 3,
+            motto: '',
+            countdownText: ''
+        };
 
-        // 자리 그리드 초기화
-        function initSeatGrid() {
-            const grid = document.getElementById('seatGrid');
-            grid.innerHTML = '';
+        // 효과음 재생
+        function playEffectSound() {
+            const audio = new Audio("{{ url_for('static', filename='effect_1.m4a') }}");
+            audio.play();
+        }
+
+        // 카운트다운 비디오 재생
+        function playCountdownVideo() {
+            const container = document.getElementById('videoContainer');
+            const video = document.getElementById('countdownVideo');
+            
+            container.style.display = 'block';
+            video.play();
+            
+            video.onended = function() {
+                container.style.display = 'none';
+                shuffleSeats();
+            };
+        }
+
+        // 자리 그리기
+        function drawSeats() {
+            const frame = document.getElementById('seatFrame');
+            frame.innerHTML = '';
+            
+            const numColumns = settings.numColumns;
+            const numRows = Math.ceil(32 / numColumns);
+            const spacing = 10; // 자리 간격
+            
             for (let i = 0; i < 32; i++) {
+                let row, col;
+                
+                if (settings.layoutMode === '열') {
+                    row = Math.floor(i / numColumns) + 1;
+                    col = (i % numColumns) + 1;
+                } else {
+                    row = (i % numRows) + 1;
+                    col = Math.floor(i / numRows) + 1;
+                }
+                
                 const seat = document.createElement('div');
                 seat.className = 'seat';
-                seat.dataset.index = i;
-                seat.onclick = (e) => showSeatMenu(e, i);
                 
-                const menu = document.createElement('div');
-                menu.className = 'seat-menu';
-                menu.innerHTML = `
-                    <button onclick="manualAssign(${i})">수동 지정</button>
-                    <button onclick="manualSwap(${i})">수동 바꾸기</button>
-                    <button onclick="randomSwap(${i})">자리 바꾸기</button>
-                    <hr>
-                    <button onclick="showStudentInfo(${i})">학생 정보</button>
-                    <button onclick="editStudentInfo(${i})">정보 수정</button>
-                    <hr>
-                    <button onclick="deleteStudent(${i})">학생 삭제</button>
-                    <button onclick="clearSeat(${i})">자리 비우기</button>
-                `;
-                seat.appendChild(menu);
+                // 자리 간격을 고려한 위치 계산
+                const left = col * (60 + spacing);
+                const top = row * (40 + spacing);
                 
-                grid.appendChild(seat);
-            }
-        }
-
-        // 자리 메뉴 표시
-        function showSeatMenu(event, index) {
-            event.stopPropagation();
-            
-            // 다른 메뉴 닫기
-            if (menuSeat !== null && menuSeat !== index) {
-                document.querySelector(`.seat[data-index="${menuSeat}"] .seat-menu`).style.display = 'none';
-            }
-            
-            const menu = document.querySelector(`.seat[data-index="${index}"] .seat-menu`);
-            if (menu.style.display === 'block') {
-                menu.style.display = 'none';
-                menuSeat = null;
-            } else {
-                menu.style.display = 'block';
-                menuSeat = index;
+                seat.style.left = `${left}px`;
+                seat.style.top = `${top}px`;
+                seat.dataset.row = row;
+                seat.dataset.col = col;
                 
-                // 메뉴 위치 조정
-                const seat = document.querySelector(`.seat[data-index="${index}"]`);
-                const rect = seat.getBoundingClientRect();
-                menu.style.left = rect.width + 'px';
-                menu.style.top = '0px';
-            }
-        }
-
-        // 수동 지정
-        function manualAssign(index) {
-            const name = prompt('학생 이름을 입력하세요:');
-            if (name) {
-                currentLayout[index] = {
-                    row: Math.floor(index / 4) + 1,
-                    col: (index % 4) + 1,
-                    name: name
+                seat.onclick = function(e) {
+                    handleSeatClick(row, col, e);
                 };
-                updateSeatGrid();
-            }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
-        }
-
-        // 수동 바꾸기
-        function manualSwap(index) {
-            if (selectedSeat === null) {
-                selectedSeat = index;
-                document.querySelector(`.seat[data-index="${index}"]`).classList.add('selected');
-            } else {
-                // 자리 교환
-                const temp = currentLayout[selectedSeat];
-                currentLayout[selectedSeat] = currentLayout[index];
-                currentLayout[index] = temp;
                 
-                document.querySelector(`.seat[data-index="${selectedSeat}"]`).classList.remove('selected');
-                selectedSeat = null;
-                updateSeatGrid();
+                frame.appendChild(seat);
             }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+            
+            // 기존 자리 정보 업데이트
+            updateSeatDisplay();
         }
 
-        // 자리 바꾸기
-        function randomSwap(index) {
-            const students = currentLayout.filter(s => s !== null);
-            if (students.length > 1) {
-                const randomIndex = Math.floor(Math.random() * students.length);
-                const temp = currentLayout[index];
-                currentLayout[index] = students[randomIndex];
-                currentLayout[students.indexOf(students[randomIndex])] = temp;
-                updateSeatGrid();
-            }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
-        }
-
-        // 학생 정보 표시
-        function showStudentInfo(index) {
-            const student = currentLayout[index];
-            if (student) {
-                alert(`이름: ${student.name}\n성별: ${student.gender || '미입력'}\n시력: ${student.eyestright || '미입력'}`);
-            } else {
-                alert('이 자리는 비어있습니다.');
-            }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
-        }
-
-        // 학생 정보 수정
-        function editStudentInfo(index) {
-            const student = currentLayout[index];
-            if (student) {
-                const name = prompt('이름:', student.name);
-                if (name) {
-                    const gender = prompt('성별 (남/여):', student.gender || '');
-                    const eyestright = prompt('시력 (정상/이상):', student.eyestright || '');
+        // 자리 클릭 처리
+        function handleSeatClick(row, col, event) {
+            if (manualDesignateMode) {
+                const seat = currentLayout.find(s => s.row === row && s.col === col);
+                if (seat) {
+                    const seatElement = document.querySelector(`.seat[data-row="${row}"][data-col="${col}"]`);
                     
-                    currentLayout[index] = {
-                        ...student,
-                        name: name,
-                        gender: gender,
-                        eyestright: eyestright
-                    };
-                    updateSeatGrid();
+                    if (seatElement.classList.contains('fixed')) {
+                        // 고정 해제
+                        seatElement.classList.remove('fixed');
+                        seatElement.style.background = '#fff';
+                        seatElement.style.border = '1px solid #888';
+                        seat.name = '';
+                    } else {
+                        // 고정 설정
+                        const name = prompt('학생 이름을 입력하세요:');
+                        if (name) {
+                            seat.name = name;
+                            seatElement.classList.add('fixed');
+                            seatElement.style.background = 'yellow';
+                            seatElement.style.border = '2px solid #f90';
+                        }
+                    }
+                    updateSeatDisplay();
                 }
-            } else {
-                alert('이 자리는 비어있습니다.');
+            } else if (manualSwapMode) {
+                if (selectedSeat === null) {
+                    // 첫 번째 자리 선택
+                    selectedSeat = { row, col };
+                    const seatElement = document.querySelector(`.seat[data-row="${row}"][data-col="${col}"]`);
+                    seatElement.classList.add('selected');
+                    seatElement.style.background = '#ffd700';
+                    seatElement.style.border = '2px solid #ff8c00';
+                } else {
+                    // 두 번째 자리 선택 시 교환
+                    const seat1 = currentLayout.find(s => s.row === selectedSeat.row && s.col === selectedSeat.col);
+                    const seat2 = currentLayout.find(s => s.row === row && s.col === col);
+                    
+                    if (seat1 && seat2) {
+                        // 이름, 성별, 시력 정보 교환
+                        const tempName = seat1.name;
+                        const tempGender = seat1.gender;
+                        const tempEyesight = seat1.eyestright;
+                        
+                        seat1.name = seat2.name;
+                        seat1.gender = seat2.gender;
+                        seat1.eyestright = seat2.eyestright;
+                        
+                        seat2.name = tempName;
+                        seat2.gender = tempGender;
+                        seat2.eyestright = tempEyesight;
+                        
+                        // 스타일 초기화
+                        const firstSeatElement = document.querySelector(`.seat[data-row="${selectedSeat.row}"][data-col="${selectedSeat.col}"]`);
+                        const secondSeatElement = document.querySelector(`.seat[data-row="${row}"][data-col="${col}"]`);
+                        
+                        firstSeatElement.classList.remove('selected');
+                        firstSeatElement.style.background = '#fff';
+                        firstSeatElement.style.border = '1px solid #888';
+                        
+                        secondSeatElement.style.background = '#fff';
+                        secondSeatElement.style.border = '1px solid #888';
+                        
+                        selectedSeat = null;
+                        updateSeatDisplay();
+                    }
+                }
             }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
         }
 
-        // 학생 삭제
-        function deleteStudent(index) {
-            if (confirm('정말로 이 학생을 삭제하시겠습니까?')) {
-                currentLayout[index] = null;
-                updateSeatGrid();
-            }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
+        // 자리 표시 업데이트
+        function updateSeatDisplay() {
+            const seats = document.querySelectorAll('.seat');
+            seats.forEach(seat => {
+                const row = parseInt(seat.dataset.row);
+                const col = parseInt(seat.dataset.col);
+                const student = currentLayout.find(s => s.row === row && s.col === col);
+                
+                if (student) {
+                    seat.textContent = student.name;
+                    if (seat.classList.contains('fixed')) {
+                        seat.style.background = 'yellow';
+                        seat.style.border = '2px solid #f90';
+                    }
+                } else {
+                    seat.textContent = '';
+                    seat.style.background = '#fff';
+                    seat.style.border = '1px solid #888';
+                }
+            });
         }
-
-        // 자리 비우기
-        function clearSeat(index) {
-            if (confirm('이 자리를 비우시겠습니까?')) {
-                currentLayout[index] = null;
-                updateSeatGrid();
-            }
-            document.querySelector(`.seat[data-index="${index}"] .seat-menu`).style.display = 'none';
-        }
-
-        // 문서 클릭 시 메뉴 닫기
-        document.addEventListener('click', function() {
-            if (menuSeat !== null) {
-                document.querySelector(`.seat[data-index="${menuSeat}"] .seat-menu`).style.display = 'none';
-                menuSeat = null;
-            }
-        });
 
         // 자리 섞기
         function shuffleSeats() {
@@ -460,21 +709,321 @@
                 grade: document.getElementById('grade').value,
                 class_num: document.getElementById('classNum').value
             }))
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('학생 목록을 불러오는데 실패했습니다.');
+                }
+                return response.json();
+            })
             .then(students => {
-                const shuffled = [...students].sort(() => Math.random() - 0.5);
+                if (!students || students.length === 0) {
+                    alert('등록된 학생이 없습니다.');
+                    return;
+                }
+                
+                let shuffled = [...students];
+                
+                // 성별 구분
+                if (settings.separateGender) {
+                    const male = shuffled.filter(s => s.gender === '남');
+                    const female = shuffled.filter(s => s.gender === '여');
+                    shuffled = [...male, ...female];
+                }
+                
+                // 시력 고려
+                if (settings.considerEyesight) {
+                    const normal = shuffled.filter(s => s.eyestright === '정상');
+                    const abnormal = shuffled.filter(s => s.eyestright === '이상');
+                    shuffled = [...abnormal, ...normal];
+                }
+                
+                // 같은 자리 방지
+                if (settings.preventSameSeat) {
+                    const lastLayout = [...currentLayout];
+                    const maxAttempts = 10;
+                    let attempts = 0;
+                    
+                    while (attempts < maxAttempts) {
+                        let hasSameSeat = false;
+                        shuffled = [...shuffled].sort(() => Math.random() - 0.5);
+                        
+                        for (let i = 0; i < shuffled.length; i++) {
+                            const student = shuffled[i];
+                            const lastSeat = lastLayout.find(s => s.name === student.name);
+                            if (lastSeat) {
+                                const newRow = Math.floor(i / settings.numColumns) + 1;
+                                const newCol = (i % settings.numColumns) + 1;
+                                if (newRow === lastSeat.row && newCol === lastSeat.col) {
+                                    hasSameSeat = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (!hasSameSeat) break;
+                        attempts++;
+                    }
+                }
+                
+                // 자리 배치
                 currentLayout = shuffled.map((student, index) => ({
-                    row: Math.floor(index / 4) + 1,
-                    col: (index % 4) + 1,
-                    name: student.name
+                    row: Math.floor(index / settings.numColumns) + 1,
+                    col: (index % settings.numColumns) + 1,
+                    name: student.name,
+                    gender: student.gender,
+                    eyestright: student.eyestright
                 }));
-                updateSeatGrid();
+                
+                // UI 업데이트
+                updateSeatDisplay();
+                
+                // 효과음 재생
+                playEffectSound();
+            })
+            .catch(error => {
+                console.error('자리 배치 중 오류 발생:', error);
+                alert(`자리 배치 중 오류가 발생했습니다: ${error.message}`);
             });
         }
 
-        // 자리 저장
-        function saveLayout() {
-            fetch('/api/layout', {
+        // 자리 배치 버튼 클릭
+        function onShuffleButtonClick() {
+            playCountdownVideo();
+        }
+
+        // 수동 지정 버튼 클릭
+        function onManualDesignateClick() {
+            manualDesignateMode = !manualDesignateMode;
+            manualSwapMode = false;
+            selectedSeat = null;
+            
+            // 모든 자리 스타일 초기화
+            document.querySelectorAll('.seat').forEach(seat => {
+                seat.classList.remove('selected', 'fixed');
+                seat.style.background = '#fff';
+                seat.style.border = '1px solid #888';
+            });
+        }
+
+        // 수동 바꾸기 버튼 클릭
+        function onManualSwapClick() {
+            manualSwapMode = !manualSwapMode;
+            manualDesignateMode = false;
+            selectedSeat = null;
+            
+            // 모든 자리 스타일 초기화
+            document.querySelectorAll('.seat').forEach(seat => {
+                seat.classList.remove('selected');
+                seat.style.background = '#fff';
+                seat.style.border = '1px solid #888';
+            });
+        }
+
+        // 자리 배치 버튼 클릭
+        function askLayoutMode() {
+            document.getElementById('layoutDialog').style.display = 'block';
+        }
+
+        // 자리 배치 방식 확인
+        function confirmLayoutMode() {
+            const selectedMode = document.querySelector('input[name="layoutMode"]:checked').value;
+            settings.layoutMode = selectedMode;
+            closeLayoutDialog();
+            drawSeats();
+        }
+
+        // 자리 배치 다이얼로그 닫기
+        function closeLayoutDialog() {
+            document.getElementById('layoutDialog').style.display = 'none';
+        }
+
+        // 저장 버튼 클릭
+        function onSaveLayoutClick() {
+            // 자리 배치 확인
+            if (!currentLayout || currentLayout.length === 0) {
+                alert('저장할 자리 배치가 없습니다.');
+                return;
+            }
+            
+            // 학교 정보 확인
+            const schoolName = document.getElementById('schoolName').value;
+            const grade = document.getElementById('grade').value;
+            const classNum = document.getElementById('classNum').value;
+            
+            if (!schoolName || !grade || !classNum) {
+                alert('학교 정보가 입력되지 않았습니다.');
+                return;
+            }
+            
+            // 현재 시간
+            const currentTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            
+            // 자리 배치 저장
+            fetch('/api/seat_history', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    school_name: schoolName,
+                    grade: grade,
+                    class_num: classNum,
+                    seats: currentLayout.map(seat => ({
+                        student_name: seat.name,
+                        row: seat.row,
+                        col: seat.col,
+                        saved_at: currentTime
+                    }))
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('자리 배치 저장 실패');
+                }
+                return response.json();
+            })
+            .then(() => {
+                // 설정 저장
+                return fetch('/api/layout_settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        school_name: schoolName,
+                        grade: grade,
+                        class_num: classNum,
+                        layout_mode: settings.layoutMode,
+                        num_columns: settings.numColumns,
+                        separate_gender: settings.separateGender,
+                        consider_eyesight: settings.considerEyesight,
+                        prevent_same_seat: settings.preventSameSeat,
+                        prevent_same_seat_count: settings.preventSameSeatCount,
+                        motto: settings.motto,
+                        countdown_text: settings.countdownText,
+                        saved_at: currentTime
+                    })
+                });
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('설정 저장 실패');
+                }
+                return response.json();
+            })
+            .then(() => {
+                alert('자리가 저장되었습니다.');
+            })
+            .catch(error => {
+                console.error('저장 중 오류 발생:', error);
+                alert(`저장 중 오류가 발생했습니다: ${error.message}`);
+            });
+        }
+
+        // 학생 등록 버튼 클릭
+        function onRegisterStudentClick() {
+            document.getElementById('registerStudentModal').style.display = 'block';
+        }
+
+        // DB 보기 버튼 클릭
+        function onViewDbClick() {
+            fetch('/api/students?' + new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            }))
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('학생 목록을 불러오는데 실패했습니다.');
+                }
+                return response.json();
+            })
+            .then(students => {
+                const tbody = document.getElementById('studentList');
+                tbody.innerHTML = '';
+                
+                students.forEach(student => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${student.name}</td>
+                        <td>${student.gender}</td>
+                        <td>${student.eyestright}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button onclick="editStudent(${student.id})">수정</button>
+                                <button onclick="deleteStudent(${student.id})">삭제</button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                document.getElementById('viewDbModal').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('학생 목록 로드 중 오류 발생:', error);
+                alert(`학생 목록을 불러오는 중 오류가 발생했습니다: ${error.message}`);
+            });
+        }
+
+        // 초기화 버튼 클릭
+        function onResetDataClick() {
+            if (confirm('정말로 모든 데이터를 초기화하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                fetch('/api/reset', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        school_name: document.getElementById('schoolName').value,
+                        grade: document.getElementById('grade').value,
+                        class_num: document.getElementById('classNum').value
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('데이터 초기화 실패');
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    alert('데이터가 초기화되었습니다.');
+                    currentLayout = [];
+                    updateSeatDisplay();
+                })
+                .catch(error => {
+                    console.error('초기화 중 오류 발생:', error);
+                    alert(`초기화 중 오류가 발생했습니다: ${error.message}`);
+                });
+            }
+        }
+
+        // 설정 버튼 클릭
+        function onSettingsClick() {
+            document.getElementById('layoutMode').value = settings.layoutMode;
+            document.getElementById('numColumns').value = settings.numColumns;
+            document.getElementById('separateGender').checked = settings.separateGender;
+            document.getElementById('considerEyesight').checked = settings.considerEyesight;
+            document.getElementById('preventSameSeat').checked = settings.preventSameSeat;
+            document.getElementById('preventSameSeatCount').value = settings.preventSameSeatCount;
+            document.getElementById('motto').value = settings.motto;
+            document.getElementById('countdownText').value = settings.countdownText;
+            
+            document.getElementById('settingsModal').style.display = 'block';
+        }
+
+        // 설정 저장
+        function saveSettings() {
+            settings.layoutMode = document.getElementById('layoutMode').value;
+            settings.numColumns = parseInt(document.getElementById('numColumns').value);
+            settings.separateGender = document.getElementById('separateGender').checked;
+            settings.considerEyesight = document.getElementById('considerEyesight').checked;
+            settings.preventSameSeat = document.getElementById('preventSameSeat').checked;
+            settings.preventSameSeatCount = parseInt(document.getElementById('preventSameSeatCount').value);
+            settings.motto = document.getElementById('motto').value;
+            settings.countdownText = document.getElementById('countdownText').value;
+            
+            fetch('/api/settings', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -483,242 +1032,187 @@
                     school_name: document.getElementById('schoolName').value,
                     grade: document.getElementById('grade').value,
                     class_num: document.getElementById('classNum').value,
-                    layout: currentLayout
+                    ...settings
                 })
             })
-            .then(response => response.json())
-            .then(data => {
-                alert('자리가 저장되었습니다.');
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('설정 저장 실패');
+                }
+                return response.json();
+            })
+            .then(() => {
+                closeModal('settingsModal');
+                drawSeats();
+            })
+            .catch(error => {
+                console.error('설정 저장 중 오류 발생:', error);
+                alert(`설정 저장 중 오류가 발생했습니다: ${error.message}`);
             });
         }
 
-        // 학생 목록 표시
-        function showStudentList() {
-            fetch('/api/students?' + new URLSearchParams({
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value
-            }))
-            .then(response => response.json())
-            .then(students => {
-                let html = '<div class="list-group">';
-                students.forEach(student => {
-                    html += `
-                        <div class="list-group-item">
-                            <h6>${student.name}</h6>
-                            <small>성별: ${student.gender}, 시력: ${student.eyestright}</small>
-                        </div>
-                    `;
-                });
-                html += '</div>';
-                alert(html);
-            });
-        }
-
-        // 학생 추가 모달 표시
-        function showAddStudent() {
-            new bootstrap.Modal(document.getElementById('addStudentModal')).show();
-        }
-
-        // 학생 추가
-        function addStudent() {
-            const data = {
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value,
-                name: document.getElementById('studentName').value,
-                gender: document.getElementById('studentGender').value,
-                eyestright: document.getElementById('studentEyestright').value
-            };
-
+        // 학생 등록
+        function registerStudent() {
+            const name = document.getElementById('studentName').value.trim();
+            const gender = document.getElementById('studentGender').value;
+            const eyesight = document.getElementById('studentEyesight').value;
+            
+            if (!name) {
+                alert('이름을 입력해주세요.');
+                return;
+            }
+            
             fetch('/api/students', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(data)
+                body: JSON.stringify({
+                    school_name: document.getElementById('schoolName').value,
+                    grade: document.getElementById('grade').value,
+                    class_num: document.getElementById('classNum').value,
+                    name: name,
+                    gender: gender,
+                    eyestright: eyesight
+                })
             })
-            .then(response => response.json())
-            .then(data => {
-                alert('학생이 추가되었습니다.');
-                document.getElementById('addStudentModal').querySelector('.btn-close').click();
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('학생 등록 실패');
+                }
+                return response.json();
+            })
+            .then(() => {
+                alert('학생이 등록되었습니다.');
+                closeModal('registerStudentModal');
+                document.getElementById('studentName').value = '';
+                loadStudentData();
+            })
+            .catch(error => {
+                console.error('등록 중 오류 발생:', error);
+                alert(`등록 중 오류가 발생했습니다: ${error.message}`);
             });
         }
 
-        // 엑셀 가져오기/내보내기 모달 표시
-        function showImportExport() {
-            new bootstrap.Modal(document.getElementById('importExportModal')).show();
-        }
-
-        // 엑셀 가져오기
-        function importExcel() {
-            const fileInput = document.getElementById('excelFile');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('파일을 선택해주세요.');
-                return;
-            }
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            fetch('/api/import', {
-                method: 'POST',
-                body: formData
-            })
+        // 학생 데이터 로드
+        function loadStudentData() {
+            fetch('/api/students?' + new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            }))
             .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    alert(data.error);
-                } else {
-                    alert('엑셀 파일이 가져와졌습니다.');
-                    document.getElementById('importExportModal').querySelector('.btn-close').click();
+            .then(students => {
+                if (students.length > 0) {
+                    loadLastLayout();
                 }
             });
         }
 
-        // 엑셀 내보내기
-        function exportExcel() {
-            const params = new URLSearchParams({
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value
-            });
-
-            window.location.href = `/api/export?${params.toString()}`;
-        }
-
-        // 자리 그리드 업데이트
-        function updateSeatGrid() {
-            const seats = document.querySelectorAll('.seat');
-            seats.forEach(seat => {
-                const index = parseInt(seat.dataset.index);
-                const student = currentLayout[index];
-                seat.textContent = student ? student.name : '';
-            });
-        }
-
-        // 설정 표시
-        function showSettings() {
-            new bootstrap.Modal(document.getElementById('settingsModal')).show();
-        }
-
-        // 설정 적용
-        function applySettings() {
-            const layoutType = document.getElementById('layoutType').value;
-            const seatCount = parseInt(document.getElementById('seatCount').value);
-            const rowCount = parseInt(document.getElementById('rowCount').value);
-            const colCount = parseInt(document.getElementById('colCount').value);
-
-            // 자리 그리드 재설정
-            const grid = document.getElementById('seatGrid');
-            grid.style.gridTemplateColumns = `repeat(${colCount}, 1fr)`;
-            grid.innerHTML = '';
-
-            for (let i = 0; i < seatCount; i++) {
-                const seat = document.createElement('div');
-                seat.className = 'seat';
-                seat.dataset.index = i;
-                seat.onclick = (e) => showSeatMenu(e, i);
-                
-                const menu = document.createElement('div');
-                menu.className = 'seat-menu';
-                menu.innerHTML = `
-                    <button onclick="manualAssign(${i})">수동 지정</button>
-                    <button onclick="manualSwap(${i})">수동 바꾸기</button>
-                    <button onclick="randomSwap(${i})">자리 바꾸기</button>
-                    <hr>
-                    <button onclick="showStudentInfo(${i})">학생 정보</button>
-                    <button onclick="editStudentInfo(${i})">정보 수정</button>
-                    <hr>
-                    <button onclick="deleteStudent(${i})">학생 삭제</button>
-                    <button onclick="clearSeat(${i})">자리 비우기</button>
-                `;
-                seat.appendChild(menu);
-                
-                grid.appendChild(seat);
-            }
-
-            // 레이아웃 타입에 따른 자리 섞기
-            if (layoutType === 'random') {
-                shuffleSeats();
-            } else if (layoutType === 'gender') {
-                shuffleByGender();
-            } else if (layoutType === 'eyestright') {
-                shuffleByEyestright();
-            }
-
-            document.getElementById('settingsModal').querySelector('.btn-close').click();
-        }
-
-        // 성별 구분 자리 섞기
-        function shuffleByGender() {
-            fetch('/api/students?' + new URLSearchParams({
+        // 마지막 자리 배치 로드
+        function loadLastLayout() {
+            fetch('/api/last_layout?' + new URLSearchParams({
                 school_name: document.getElementById('schoolName').value,
                 grade: document.getElementById('grade').value,
                 class_num: document.getElementById('classNum').value
             }))
             .then(response => response.json())
-            .then(students => {
-                const male = students.filter(s => s.gender === '남');
-                const female = students.filter(s => s.gender === '여');
-                
-                // 남학생은 왼쪽, 여학생은 오른쪽
-                const shuffled = [
-                    ...male.sort(() => Math.random() - 0.5),
-                    ...female.sort(() => Math.random() - 0.5)
-                ];
-                
-                currentLayout = shuffled.map((student, index) => ({
-                    row: Math.floor(index / 4) + 1,
-                    col: (index % 4) + 1,
-                    name: student.name,
-                    gender: student.gender,
-                    eyestright: student.eyestright
-                }));
-                updateSeatGrid();
+            .then(data => {
+                if (data) {
+                    currentLayout = data.layout;
+                    settings = data.settings;
+                    drawSeats();
+                    updateSeatDisplay();
+                }
             });
         }
 
-        // 시력 고려 자리 섞기
-        function shuffleByEyestright() {
-            fetch('/api/students?' + new URLSearchParams({
-                school_name: document.getElementById('schoolName').value,
-                grade: document.getElementById('grade').value,
-                class_num: document.getElementById('classNum').value
-            }))
-            .then(response => response.json())
-            .then(students => {
-                const normal = students.filter(s => s.eyestright === '정상');
-                const abnormal = students.filter(s => s.eyestright === '이상');
-                
-                // 시력이 좋은 학생은 뒤쪽, 나쁜 학생은 앞쪽
-                const shuffled = [
-                    ...abnormal.sort(() => Math.random() - 0.5),
-                    ...normal.sort(() => Math.random() - 0.5)
-                ];
-                
-                currentLayout = shuffled.map((student, index) => ({
-                    row: Math.floor(index / 4) + 1,
-                    col: (index % 4) + 1,
-                    name: student.name,
-                    gender: student.gender,
-                    eyestright: student.eyestright
-                }));
-                updateSeatGrid();
-            });
-        }
-
-        // 초기화
-        function resetLayout() {
-            if (confirm('정말로 모든 자리를 초기화하시겠습니까?')) {
-                currentLayout = Array(32).fill(null);
-                updateSeatGrid();
+        // 학생 수정
+        function editStudent(studentId) {
+            const name = prompt('새로운 이름을 입력하세요:');
+            if (name) {
+                fetch(`/api/students/${studentId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('학생 정보 수정 실패');
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    alert('학생 정보가 수정되었습니다.');
+                    onViewDbClick();
+                })
+                .catch(error => {
+                    console.error('수정 중 오류 발생:', error);
+                    alert(`수정 중 오류가 발생했습니다: ${error.message}`);
+                });
             }
         }
 
+        // 학생 삭제
+        function deleteStudent(studentId) {
+            if (confirm('정말로 이 학생을 삭제하시겠습니까?')) {
+                fetch(`/api/students/${studentId}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('학생 삭제 실패');
+                    }
+                    return response.json();
+                })
+                .then(() => {
+                    alert('학생이 삭제되었습니다.');
+                    onViewDbClick();
+                })
+                .catch(error => {
+                    console.error('삭제 중 오류 발생:', error);
+                    alert(`삭제 중 오류가 발생했습니다: ${error.message}`);
+                });
+            }
+        }
+
+        // 테이블 정렬
+        function sortTable(column) {
+            const tbody = document.getElementById('studentList');
+            const rows = Array.from(tbody.getElementsByTagName('tr'));
+            
+            rows.sort((a, b) => {
+                const aValue = a.cells[column].textContent;
+                const bValue = b.cells[column].textContent;
+                return aValue.localeCompare(bValue);
+            });
+            
+            tbody.innerHTML = '';
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
         // 초기화
-        initSeatGrid();
+        window.onload = function() {
+            document.getElementById('schoolInfoModal').style.display = 'block';
+            
+            // 모달 닫기 버튼 이벤트
+            document.querySelectorAll('.close').forEach(button => {
+                button.onclick = function() {
+                    this.closest('.modal').style.display = 'none';
+                };
+            });
+            
+            // 모달 외부 클릭 시 닫기
+            window.onclick = function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            };
+        };
     </script>
 </body>
 </html> 
