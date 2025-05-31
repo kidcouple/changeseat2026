@@ -34,6 +34,10 @@
             height: 768px;
             margin: 0 auto;
             cursor: default;
+            background-image: url("{{ url_for('static', filename='class_main.png') }}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
         }
         
         .seat {
@@ -370,15 +374,15 @@
 <body>
     <div id="seatFrame">
         <!-- 버튼 영역 -->
-        <div class="button-area" style="left: 101px; top: 69px; width: 45px; height: 20px;" onclick="onShuffleButtonClick()"></div>
-        <div class="button-area" style="left: 186px; top: 69px; width: 42px; height: 15px;" onclick="onManualDesignateClick()"></div>
-        <div class="button-area" style="left: 270px; top: 61px; width: 45px; height: 35px;" onclick="onManualSwapClick()"></div>
-        <div class="button-area" style="left: 355px; top: 61px; width: 39px; height: 33px;" onclick="askLayoutMode()"></div>
-        <div class="button-area" style="left: 440px; top: 61px; width: 39px; height: 35px;" onclick="onSaveLayoutClick()"></div>
-        <div class="button-area" style="left: 719px; top: 62px; width: 44px; height: 35px;" onclick="onRegisterStudentClick()"></div>
-        <div class="button-area" style="left: 806px; top: 60px; width: 40px; height: 35px;" onclick="onViewDbClick()"></div>
-        <div class="button-area" style="left: 890px; top: 63px; width: 40px; height: 37px;" onclick="onResetDataClick()"></div>
-        <div class="button-area" style="left: 974px; top: 61px; width: 39px; height: 37px;" onclick="onSettingsClick()"></div>
+        <div class="button-area" style="position: absolute; left: 101px; top: 69px; width: 45px; height: 20px; cursor: pointer; z-index: 100;" onclick="onShuffleButtonClick()"></div>
+        <div class="button-area" style="position: absolute; left: 186px; top: 69px; width: 42px; height: 15px; cursor: pointer; z-index: 100;" onclick="onManualDesignateClick()"></div>
+        <div class="button-area" style="position: absolute; left: 270px; top: 61px; width: 45px; height: 35px; cursor: pointer; z-index: 100;" onclick="onManualSwapClick()"></div>
+        <div class="button-area" style="position: absolute; left: 355px; top: 61px; width: 39px; height: 33px; cursor: pointer; z-index: 100;" onclick="askLayoutMode()"></div>
+        <div class="button-area" style="position: absolute; left: 440px; top: 61px; width: 39px; height: 35px; cursor: pointer; z-index: 100;" onclick="onSaveLayoutClick()"></div>
+        <div class="button-area" style="position: absolute; left: 719px; top: 62px; width: 44px; height: 35px; cursor: pointer; z-index: 100;" onclick="onRegisterStudentClick()"></div>
+        <div class="button-area" style="position: absolute; left: 806px; top: 60px; width: 40px; height: 35px; cursor: pointer; z-index: 100;" onclick="onViewDbClick()"></div>
+        <div class="button-area" style="position: absolute; left: 890px; top: 63px; width: 40px; height: 37px; cursor: pointer; z-index: 100;" onclick="onResetDataClick()"></div>
+        <div class="button-area" style="position: absolute; left: 974px; top: 61px; width: 39px; height: 37px; cursor: pointer; z-index: 100;" onclick="onSettingsClick()"></div>
     </div>
     
     <!-- 비디오 컨테이너 -->
