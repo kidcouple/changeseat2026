@@ -225,10 +225,9 @@
         
         .button-area {
             position: absolute;
-            width: 40px;
-            height: 30px;
             cursor: pointer;
             z-index: 100;
+            background: transparent;
         }
         
         .button-area:hover {
@@ -632,31 +631,35 @@
             const numRows = Math.ceil(32 / numColumns);
             const spacing = 10; // 자리 간격
             
+            // 시작 위치 조정 (원본 프로그램과 동일하게)
+            const startX = 100;
+            const startY = 100;
+            
             for (let i = 0; i < 32; i++) {
                 let row, col;
                 
                 if (settings.layoutMode === '열') {
-                    row = Math.floor(i / numColumns) + 1;
-                    col = (i % numColumns) + 1;
+                    row = Math.floor(i / numColumns);
+                    col = i % numColumns;
                 } else {
-                    row = (i % numRows) + 1;
-                    col = Math.floor(i / numRows) + 1;
+                    row = i % numRows;
+                    col = Math.floor(i / numRows);
                 }
                 
                 const seat = document.createElement('div');
                 seat.className = 'seat';
                 
                 // 자리 간격을 고려한 위치 계산
-                const left = col * (60 + spacing);
-                const top = row * (40 + spacing);
+                const left = startX + (col * (60 + spacing));
+                const top = startY + (row * (40 + spacing));
                 
                 seat.style.left = `${left}px`;
                 seat.style.top = `${top}px`;
-                seat.dataset.row = row;
-                seat.dataset.col = col;
+                seat.dataset.row = row + 1;  // 1-based index
+                seat.dataset.col = col + 1;  // 1-based index
                 
                 seat.onclick = function(e) {
-                    handleSeatClick(row, col, e);
+                    handleSeatClick(row + 1, col + 1, e);
                 };
                 
                 frame.appendChild(seat);
