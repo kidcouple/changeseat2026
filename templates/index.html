@@ -30,9 +30,8 @@
         
         #seatFrame {
             position: relative;
-            width: 1024px;
-            height: 768px;
-            margin: 0 auto;
+            width: 100%;
+            height: 100vh;
             cursor: default;
             background-image: url("{{ url_for('static', filename='class_main.png') }}");
             background-size: cover;
@@ -232,6 +231,7 @@
             cursor: pointer;
             z-index: 100;
             background: transparent;
+            transform-origin: top left;
         }
         
         .button-area:hover {
@@ -374,15 +374,15 @@
 <body>
     <div id="seatFrame">
         <!-- 버튼 영역 -->
-        <div class="button-area" style="position: absolute; left: 101px; top: 69px; width: 45px; height: 20px; cursor: pointer; z-index: 100;" onclick="onShuffleButtonClick()"></div>
-        <div class="button-area" style="position: absolute; left: 186px; top: 69px; width: 42px; height: 15px; cursor: pointer; z-index: 100;" onclick="onManualDesignateClick()"></div>
-        <div class="button-area" style="position: absolute; left: 270px; top: 61px; width: 45px; height: 35px; cursor: pointer; z-index: 100;" onclick="onManualSwapClick()"></div>
-        <div class="button-area" style="position: absolute; left: 355px; top: 61px; width: 39px; height: 33px; cursor: pointer; z-index: 100;" onclick="askLayoutMode()"></div>
-        <div class="button-area" style="position: absolute; left: 440px; top: 61px; width: 39px; height: 35px; cursor: pointer; z-index: 100;" onclick="onSaveLayoutClick()"></div>
-        <div class="button-area" style="position: absolute; left: 719px; top: 62px; width: 44px; height: 35px; cursor: pointer; z-index: 100;" onclick="onRegisterStudentClick()"></div>
-        <div class="button-area" style="position: absolute; left: 806px; top: 60px; width: 40px; height: 35px; cursor: pointer; z-index: 100;" onclick="onViewDbClick()"></div>
-        <div class="button-area" style="position: absolute; left: 890px; top: 63px; width: 40px; height: 37px; cursor: pointer; z-index: 100;" onclick="onResetDataClick()"></div>
-        <div class="button-area" style="position: absolute; left: 974px; top: 61px; width: 39px; height: 37px; cursor: pointer; z-index: 100;" onclick="onSettingsClick()"></div>
+        <div id="shuffle" class="button-area" onclick="onShuffleButtonClick()"></div>
+        <div id="designate" class="button-area" onclick="onManualDesignateClick()"></div>
+        <div id="swap" class="button-area" onclick="onManualSwapClick()"></div>
+        <div id="layout" class="button-area" onclick="askLayoutMode()"></div>
+        <div id="save" class="button-area" onclick="onSaveLayoutClick()"></div>
+        <div id="register" class="button-area" onclick="onRegisterStudentClick()"></div>
+        <div id="view" class="button-area" onclick="onViewDbClick()"></div>
+        <div id="reset" class="button-area" onclick="onResetDataClick()"></div>
+        <div id="settings" class="button-area" onclick="onSettingsClick()"></div>
     </div>
     
     <!-- 비디오 컨테이너 -->
@@ -424,24 +424,38 @@
                 <span class="close">&times;</span>
             </div>
             <div class="form-group">
-                <label>이름:</label>
-                <input type="text" id="studentName">
+                <label>엑셀 파일:</label>
+                <input type="file" id="excelFile" accept=".xlsx,.xls">
             </div>
             <div class="form-group">
-                <label>성별:</label>
-                <select id="studentGender">
-                    <option value="남">남</option>
-                    <option value="여">여</option>
-                </select>
+                <label>또는 직접 입력:</label>
+                <div class="input-group">
+                    <input type="text" id="studentName" placeholder="이름">
+                    <select id="studentGender">
+                        <option value="남">남</option>
+                        <option value="여">여</option>
+                    </select>
+                    <select id="studentEyesight">
+                        <option value="정상">정상</option>
+                        <option value="이상">이상</option>
+                    </select>
+                    <button onclick="addStudent()">추가</button>
+                </div>
             </div>
-            <div class="form-group">
-                <label>시력:</label>
-                <select id="studentEyesight">
-                    <option value="정상">정상</option>
-                    <option value="이상">이상</option>
-                </select>
+            <div class="student-list">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>성별</th>
+                            <th>시력</th>
+                            <th>작업</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tempStudentList"></tbody>
+                </table>
             </div>
-            <button class="btn btn-primary" onclick="registerStudent()">등록</button>
+            <button class="btn btn-primary" onclick="registerStudents()">등록</button>
             <button class="btn btn-secondary" onclick="closeModal('registerStudentModal')">취소</button>
         </div>
     </div>
@@ -473,33 +487,6 @@
             <div class="modal-header">
                 <h3 class="modal-title">설정</h3>
                 <span class="close">&times;</span>
-            </div>
-            <div class="form-group">
-                <label>자리 배치 방식:</label>
-                <select id="layoutMode">
-                    <option value="열">열</option>
-                    <option value="행">행</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>열 수:</label>
-                <input type="number" id="numColumns" min="1" max="10" value="4">
-            </div>
-            <div class="form-group">
-                <label>성별 구분:</label>
-                <input type="checkbox" id="separateGender" checked>
-            </div>
-            <div class="form-group">
-                <label>시력 고려:</label>
-                <input type="checkbox" id="considerEyesight">
-            </div>
-            <div class="form-group">
-                <label>같은 자리 방지:</label>
-                <input type="checkbox" id="preventSameSeat">
-            </div>
-            <div class="form-group">
-                <label>같은 자리 방지 횟수:</label>
-                <input type="number" id="preventSameSeatCount" min="1" max="10" value="3">
             </div>
             <div class="form-group">
                 <label>좌우명:</label>
@@ -631,24 +618,27 @@
             const frame = document.getElementById('seatFrame');
             frame.innerHTML = '';
             
-            const numColumns = settings.numColumns;
-            const numRows = Math.ceil(32 / numColumns);
-            const spacing = 10; // 자리 간격
+            // 분단 추가
+            const divider = document.createElement('div');
+            divider.style.position = 'absolute';
+            divider.style.left = '50%';
+            divider.style.top = '100px';
+            divider.style.width = '2px';
+            divider.style.height = '400px';
+            divider.style.backgroundColor = '#000';
+            frame.appendChild(divider);
+            
+            const numColumns = 4;  // 고정된 열 수
+            const numRows = 8;     // 고정된 행 수
+            const spacing = 10;    // 자리 간격
             
             // 시작 위치 조정 (원본 프로그램과 동일하게)
             const startX = 100;
             const startY = 100;
             
             for (let i = 0; i < 32; i++) {
-                let row, col;
-                
-                if (settings.layoutMode === '열') {
-                    row = Math.floor(i / numColumns);
-                    col = i % numColumns;
-                } else {
-                    row = i % numRows;
-                    col = Math.floor(i / numRows);
-                }
+                const row = Math.floor(i / numColumns);
+                const col = i % numColumns;
                 
                 const seat = document.createElement('div');
                 seat.className = 'seat';
@@ -1059,12 +1049,6 @@
 
         // 설정 버튼 클릭
         function onSettingsClick() {
-            document.getElementById('layoutMode').value = settings.layoutMode;
-            document.getElementById('numColumns').value = settings.numColumns;
-            document.getElementById('separateGender').checked = settings.separateGender;
-            document.getElementById('considerEyesight').checked = settings.considerEyesight;
-            document.getElementById('preventSameSeat').checked = settings.preventSameSeat;
-            document.getElementById('preventSameSeatCount').value = settings.preventSameSeatCount;
             document.getElementById('motto').value = settings.motto;
             document.getElementById('countdownText').value = settings.countdownText;
             
@@ -1073,12 +1057,6 @@
 
         // 설정 저장
         function saveSettings() {
-            settings.layoutMode = document.getElementById('layoutMode').value;
-            settings.numColumns = parseInt(document.getElementById('numColumns').value);
-            settings.separateGender = document.getElementById('separateGender').checked;
-            settings.considerEyesight = document.getElementById('considerEyesight').checked;
-            settings.preventSameSeat = document.getElementById('preventSameSeat').checked;
-            settings.preventSameSeatCount = parseInt(document.getElementById('preventSameSeatCount').value);
             settings.motto = document.getElementById('motto').value;
             settings.countdownText = document.getElementById('countdownText').value;
             
@@ -1271,6 +1249,43 @@
                     event.target.style.display = 'none';
                 }
             };
+
+            // 버튼 위치 조정
+            function adjustButtonPositions() {
+                const frame = document.getElementById('seatFrame');
+                const frameWidth = frame.offsetWidth;
+                const frameHeight = frame.offsetHeight;
+                const scaleX = frameWidth / 1024;  // 원본 너비
+                const scaleY = frameHeight / 768;  // 원본 높이
+
+                const buttons = [
+                    { id: 'shuffle', x: 101, y: 69, w: 45, h: 20 },
+                    { id: 'designate', x: 186, y: 69, w: 42, h: 15 },
+                    { id: 'swap', x: 270, y: 61, w: 45, h: 35 },
+                    { id: 'layout', x: 355, y: 61, w: 39, h: 33 },
+                    { id: 'save', x: 440, y: 61, w: 39, h: 35 },
+                    { id: 'register', x: 719, y: 62, w: 44, h: 35 },
+                    { id: 'view', x: 806, y: 60, w: 40, h: 35 },
+                    { id: 'reset', x: 890, y: 63, w: 40, h: 37 },
+                    { id: 'settings', x: 974, y: 61, w: 39, h: 37 }
+                ];
+
+                buttons.forEach(button => {
+                    const element = document.getElementById(button.id);
+                    if (element) {
+                        element.style.left = `${button.x * scaleX}px`;
+                        element.style.top = `${button.y * scaleY}px`;
+                        element.style.width = `${button.w * scaleX}px`;
+                        element.style.height = `${button.h * scaleY}px`;
+                    }
+                });
+            }
+
+            // 초기 버튼 위치 설정
+            adjustButtonPositions();
+
+            // 창 크기 변경 시 버튼 위치 재조정
+            window.addEventListener('resize', adjustButtonPositions);
         };
     </script>
 </body>
