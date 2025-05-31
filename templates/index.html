@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4A90E2">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="자리 배치">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="apple-touch-icon" href="/static/icon-192x192.png">
+    <title>자리 배치 프로그램</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 10px;
+            background-color: #f8f9fa;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .seat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+            touch-action: manipulation;
+        }
+        .seat {
+            aspect-ratio: 1;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            padding: 5px;
+            text-align: center;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        .seat.selected {
+            background: #ffd700;
+        }
+        .btn {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .modal-dialog {
+            margin: 10px;
+        }
+        @media (max-width: 576px) {
+            .seat {
+                font-size: 12px;
+            }
+            .btn {
+                font-size: 14px;
+                padding: 8px 16px;
+            }
+        }
+        /* iOS 스타일 개선 */
+        input, select {
+            -webkit-appearance: none;
+            border-radius: 8px;
+        }
+        /* 스크롤 개선 */
+        .container {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-center mb-4">자리 배치 프로그램</h2>
+        
+        <!-- 학교 정보 -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">학교 정보</h5>
+                <div class="row">
+                    <div class="col">
+                        <input type="text" class="form-control" id="schoolName" placeholder="학교명">
+                    </div>
+                    <div class="col">
+                        <input type="number" class="form-control" id="grade" placeholder="학년">
+                    </div>
+                    <div class="col">
+                        <input type="number" class="form-control" id="classNum" placeholder="반">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 버튼 그룹 -->
+        <div class="d-grid gap-2">
+            <button class="btn btn-primary" onclick="shuffleSeats()">자리 섞기</button>
+            <button class="btn btn-success" onclick="saveLayout()">자리 저장</button>
+            <button class="btn btn-info" onclick="showStudentList()">학생 목록</button>
+            <button class="btn btn-warning" onclick="showAddStudent()">학생 추가</button>
+        </div>
+
+        <!-- 자리 배치 -->
+        <div class="seat-grid" id="seatGrid"></div>
+    </div>
+
+    <!-- 학생 추가 모달 -->
+    <div class="modal fade" id="addStudentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">학생 추가</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="studentName" placeholder="이름">
+                    </div>
+                    <div class="mb-3">
+                        <select class="form-control" id="studentGender">
+                            <option value="남">남</option>
+                            <option value="여">여</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <select class="form-control" id="studentEyestright">
+                            <option value="정상">정상</option>
+                            <option value="이상">이상</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+                    <button type="button" class="btn btn-primary" onclick="addStudent()">추가</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentLayout = [];
+        let selectedSeat = null;
+
+        // 자리 그리드 초기화
+        function initSeatGrid() {
+            const grid = document.getElementById('seatGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 32; i++) {
+                const seat = document.createElement('div');
+                seat.className = 'seat';
+                seat.dataset.index = i;
+                seat.onclick = () => selectSeat(i);
+                grid.appendChild(seat);
+            }
+        }
+
+        // 자리 선택
+        function selectSeat(index) {
+            if (selectedSeat !== null) {
+                document.querySelector(`.seat[data-index="${selectedSeat}"]`).classList.remove('selected');
+            }
+            if (selectedSeat === index) {
+                selectedSeat = null;
+            } else {
+                selectedSeat = index;
+                document.querySelector(`.seat[data-index="${index}"]`).classList.add('selected');
+            }
+        }
+
+        // 자리 섞기
+        function shuffleSeats() {
+            fetch('/api/students?' + new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            }))
+            .then(response => response.json())
+            .then(students => {
+                const shuffled = [...students].sort(() => Math.random() - 0.5);
+                currentLayout = shuffled.map((student, index) => ({
+                    row: Math.floor(index / 4) + 1,
+                    col: (index % 4) + 1,
+                    name: student.name
+                }));
+                updateSeatGrid();
+            });
+        }
+
+        // 자리 저장
+        function saveLayout() {
+            fetch('/api/layout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    school_name: document.getElementById('schoolName').value,
+                    grade: document.getElementById('grade').value,
+                    class_num: document.getElementById('classNum').value,
+                    layout: currentLayout
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('자리가 저장되었습니다.');
+            });
+        }
+
+        // 학생 목록 표시
+        function showStudentList() {
+            fetch('/api/students?' + new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            }))
+            .then(response => response.json())
+            .then(students => {
+                let html = '<div class="list-group">';
+                students.forEach(student => {
+                    html += `
+                        <div class="list-group-item">
+                            <h6>${student.name}</h6>
+                            <small>성별: ${student.gender}, 시력: ${student.eyestright}</small>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                alert(html);
+            });
+        }
+
+        // 학생 추가 모달 표시
+        function showAddStudent() {
+            new bootstrap.Modal(document.getElementById('addStudentModal')).show();
+        }
+
+        // 학생 추가
+        function addStudent() {
+            const data = {
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value,
+                name: document.getElementById('studentName').value,
+                gender: document.getElementById('studentGender').value,
+                eyestright: document.getElementById('studentEyestright').value
+            };
+
+            fetch('/api/students', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('학생이 추가되었습니다.');
+                bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+            });
+        }
+
+        // 자리 그리드 업데이트
+        function updateSeatGrid() {
+            const seats = document.querySelectorAll('.seat');
+            seats.forEach((seat, index) => {
+                const student = currentLayout.find(s => 
+                    s.row === Math.floor(index / 4) + 1 && 
+                    s.col === (index % 4) + 1
+                );
+                seat.textContent = student ? student.name : '';
+            });
+        }
+
+        // 초기화
+        initSeatGrid();
+    </script>
+</body>
+</html> 

@@ -1,0 +1,22 @@
+{
+    "name": "자리 배치 프로그램",
+    "short_name": "자리 배치",
+    "description": "교실 자리 배치 프로그램",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#4A90E2",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/static/icon-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/static/icon-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+} 
