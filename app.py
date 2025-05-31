@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 import os
+import pandas as pd
+from datetime import datetime
 
 app = Flask(__name__, static_folder='static')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///seats.db')
@@ -108,6 +110,73 @@ def save_layout():
     
     db.session.commit()
     return jsonify({'message': 'success'})
+
+@app.route('/api/import', methods=['POST'])
+def import_students():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.endswith('.xlsx'):
+        return jsonify({'error': 'Only Excel files are allowed'}), 400
+    
+    try:
+        df = pd.read_excel(file)
+        required_columns = ['학교명', '학년', '반', '학번', '이름', '성별', '시력']
+        
+        if not all(col in df.columns for col in required_columns):
+            return jsonify({'error': 'Missing required columns'}), 400
+        
+        for _, row in df.iterrows():
+            student = Student(
+                school_name=row['학교명'],
+                grade=int(row['학년']),
+                class_num=int(row['반']),
+                student_number=int(row['학번']),
+                name=row['이름'],
+                gender=row['성별'],
+                eyestright=row['시력']
+            )
+            db.session.add(student)
+        
+        db.session.commit()
+        return jsonify({'message': 'success'})
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export', methods=['GET'])
+def export_students():
+    school_name = request.args.get('school_name')
+    grade = request.args.get('grade')
+    class_num = request.args.get('class_num')
+    
+    students = Student.query.filter_by(
+        school_name=school_name,
+        grade=grade,
+        class_num=class_num
+    ).all()
+    
+    data = []
+    for student in students:
+        data.append({
+            '학교명': student.school_name,
+            '학년': student.grade,
+            '반': student.class_num,
+            '학번': student.student_number,
+            '이름': student.name,
+            '성별': student.gender,
+            '시력': student.eyestright
+        })
+    
+    df = pd.DataFrame(data)
+    filename = f'students_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+    df.to_excel(filename, index=False)
+    
+    return send_from_directory('.', filename, as_attachment=True)
 
 @app.route('/static/<path:path>')
 def send_static(path):
