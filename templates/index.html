@@ -101,6 +101,7 @@
             <button class="btn btn-success" onclick="saveLayout()">자리 저장</button>
             <button class="btn btn-info" onclick="showStudentList()">학생 목록</button>
             <button class="btn btn-warning" onclick="showAddStudent()">학생 추가</button>
+            <button class="btn btn-secondary" onclick="showImportExport()">엑셀 가져오기/내보내기</button>
         </div>
 
         <!-- 자리 배치 -->
@@ -135,6 +136,32 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
                     <button type="button" class="btn btn-primary" onclick="addStudent()">추가</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 엑셀 가져오기/내보내기 모달 -->
+    <div class="modal fade" id="importExportModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">엑셀 가져오기/내보내기</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">엑셀 파일 가져오기</label>
+                        <input type="file" class="form-control" id="excelFile" accept=".xlsx">
+                    </div>
+                    <div class="mb-3">
+                        <button class="btn btn-primary w-100" onclick="importExcel()">가져오기</button>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label">엑셀 파일 내보내기</label>
+                        <button class="btn btn-success w-100" onclick="exportExcel()">내보내기</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -259,18 +286,59 @@
             .then(response => response.json())
             .then(data => {
                 alert('학생이 추가되었습니다.');
-                bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
+                document.getElementById('addStudentModal').querySelector('.btn-close').click();
             });
+        }
+
+        // 엑셀 가져오기/내보내기 모달 표시
+        function showImportExport() {
+            new bootstrap.Modal(document.getElementById('importExportModal')).show();
+        }
+
+        // 엑셀 가져오기
+        function importExcel() {
+            const fileInput = document.getElementById('excelFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('파일을 선택해주세요.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/import', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    alert('엑셀 파일이 가져와졌습니다.');
+                    document.getElementById('importExportModal').querySelector('.btn-close').click();
+                }
+            });
+        }
+
+        // 엑셀 내보내기
+        function exportExcel() {
+            const params = new URLSearchParams({
+                school_name: document.getElementById('schoolName').value,
+                grade: document.getElementById('grade').value,
+                class_num: document.getElementById('classNum').value
+            });
+
+            window.location.href = `/api/export?${params.toString()}`;
         }
 
         // 자리 그리드 업데이트
         function updateSeatGrid() {
             const seats = document.querySelectorAll('.seat');
-            seats.forEach((seat, index) => {
-                const student = currentLayout.find(s => 
-                    s.row === Math.floor(index / 4) + 1 && 
-                    s.col === (index % 4) + 1
-                );
+            seats.forEach(seat => {
+                const index = parseInt(seat.dataset.index);
+                const student = currentLayout[index];
                 seat.textContent = student ? student.name : '';
             });
         }
