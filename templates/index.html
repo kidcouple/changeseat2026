@@ -216,7 +216,8 @@
             border-color: #2563eb;
         }
 
-        .seat.fixed {
+        /* 고정석 스타일 (비밀 유지를 위해 '강제 지정 모드'에서만 표시) */
+        .forced-assignment-active .seat.fixed {
             background: #fef08a;
             border-color: #eab308;
         }
@@ -935,10 +936,13 @@
                     }
 
                     if (forced) {
-                        seat.textContent = forced.name;
+                        // 🚩 중요: 관리 모드일 때만 이름을 보여줌 (학생용 화면에서는 빈칸)
+                        seat.textContent = forcedSeatMode ? forced.name : "";
                         seat.classList.add('fixed');
-                        seat.style.border = "3px solid #3b82f6";
-                        seat.style.background = "#eff6ff";
+                        if (forcedSeatMode) {
+                            seat.style.border = "3px solid #3b82f6";
+                            seat.style.background = "#eff6ff";
+                        }
                     } else if (s && !forcedSeatMode && !disabledSeatMode && !settingsMode) {
                         seat.textContent = s.name;
                         if (s.is_fixed) seat.classList.add('fixed');
@@ -1224,8 +1228,8 @@
                     return;
                 }
 
-                // 가상의 "섞는 중" 데이터 생성
-                const seats = document.querySelectorAll('.seat:not(.disabled):not(.fixed)');
+                // 가상의 "섞는 중" 데이터 생성 (고정석도 학생 모르게 흔들어야 함)
+                const seats = document.querySelectorAll('.seat:not(.disabled)');
                 const names = studentList.map(s => s.name);
 
                 seats.forEach(seat => {
@@ -1308,11 +1312,13 @@
 
         function enterForcedSeatMode() {
             forcedSeatMode = true;
+            document.body.classList.add('forced-assignment-active');
             closeModal('settingsModal');
             document.getElementById('forcedModeBar').style.display = 'block';
         }
         function exitForcedSeatMode() {
             forcedSeatMode = false;
+            document.body.classList.remove('forced-assignment-active');
             document.getElementById('forcedModeBar').style.display = 'none';
             onSettingsClick();
         }
