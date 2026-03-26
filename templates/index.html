@@ -1067,7 +1067,7 @@
                 student_number: num || (tempRows.length + 1),
                 name, 
                 gender: document.getElementById('studentGender').value, 
-                eyesight: document.getElementById('studentEyesight').value 
+                eyestright: document.getElementById('studentEyesight').value // Standardized name
             });
             
             renderTempList();
@@ -1078,7 +1078,8 @@
         function renderTempList() {
             const b = document.getElementById('tempStudentList');
             b.innerHTML = tempRows.map((r, i) => {
-                const visionValue = r.eyesight || (r.student_eyesight ? (r.student_eyesight == 1 ? '정상' : '이상') : '정상');
+                // Handle both names for compatibility during transition
+                const visionValue = r.eyestright || r.eyesight || '정상';
                 const isNormal = visionValue == '1' || visionValue == '정상';
                 return `<tr>
                     <td>${r.student_number}</td>
@@ -1094,7 +1095,7 @@
             const fileInput = document.getElementById('excelFile');
             const saveBtn = document.querySelector('#registerStudentModal .btn-primary');
 
-            // 🚩 메타데이터(학교/학년/반) 동기화: 현재 입력값 기준
+            // 🚩 메타데이터(학교/학년/반) 동기화
             const targetSchool = document.getElementById('school_name_input').value || schoolInfo.school_name;
             const targetGrade = document.getElementById('grade_input').value || schoolInfo.grade;
             const targetClass = document.getElementById('class_num_input').value || schoolInfo.class_num;
@@ -1102,14 +1103,13 @@
             if (fileInput.files.length > 0) {
                 const formData = new FormData();
                 formData.append('file', fileInput.files[0]);
-                // 업로드 역시 현재 타겟 정보 전달 (필요시 백엔드에서 처리)
                 fetch('/api/students/upload', { method: 'POST', body: formData })
                     .then(r => r.json()).then(d => { 
                         if (d.students) {
                             tempRows = tempRows.concat(d.students);
                             renderTempList();
                             fileInput.value = "";
-                            alert(`${d.students.length}명의 학생을 임시 목록에 추가했습니다. '등록 완료'를 눌러 저장하세요.`);
+                            alert(`${d.students.length}명의 학생이 임시 목록에 추가되었습니다.\n아래 [등록 완료] 버튼을 한 번 더 눌러야 최종 저장됩니다!`);
                         }
                     });
             } else if (tempRows.length > 0) {
@@ -1117,16 +1117,20 @@
                 saveBtn.textContent = '저장 중...';
 
                 try {
-                    await Promise.all(tempRows.map(s => {
-                        const payload = { ...s, school_name: targetSchool, grade: targetGrade, class_num: targetClass };
-                        return fetch('/api/students', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload)
-                        });
-                    }));
+                    const response = await fetch('/api/students/bulk', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            school_name: targetSchool,
+                            grade: targetGrade,
+                            class_num: targetClass,
+                            students: tempRows
+                        })
+                    });
 
-                    // 🚩 중요: 리로드 전 localStorage에 현재 학급 정보 저장 (동기화 핵심)
+                    if (!response.ok) throw new Error('서버 응답 오류');
+
+                    // 🚩 중요: 리로드 전 localStorage에 현재 학급 정보 저장
                     schoolInfo = { ...schoolInfo, school_name: targetSchool, grade: targetGrade, class_num: targetClass };
                     localStorage.setItem('schoolInfo', JSON.stringify(schoolInfo));
 

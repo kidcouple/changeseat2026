@@ -102,6 +102,11 @@ def add_student():
         grade = data.get('grade') or args.get('grade')
         class_num = data.get('class_num') or args.get('class_num')
 
+        # Handle both 'eyestright' and 'eyesight' keys for compatibility
+        vision = data.get('eyestright') or data.get('eyesight') or '정상'
+        if str(vision) == '2' or '이상' in str(vision): vision = '이상'
+        elif str(vision) == '1' or '정상' in str(vision): vision = '정상'
+
         student = Student(
             school_name=str(school),
             grade=safe_int(grade),
@@ -109,7 +114,7 @@ def add_student():
             student_number=safe_int(data.get('student_number')),
             name=str(data.get('name', '')).strip(),
             gender=str(data.get('gender', '남')),
-            eyestright=str(data.get('eyestright', '정상')),
+            eyestright=str(vision),
             is_transferred=bool(data.get('is_transferred', False))
         )
         if not student.name:
@@ -117,9 +122,48 @@ def add_student():
             
         db.session.add(student)
         db.session.commit()
+        print(f"Added student: {student.name} ({student.school_name} {student.grade}-{student.class_num})")
         return jsonify({'message': 'success'})
     except Exception as e:
+        print(f"Error adding student: {str(e)}")
         db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/students/bulk', methods=['POST'])
+def bulk_add_students():
+    data = request.json
+    students_data = data.get('students', [])
+    school = data.get('school_name', '')
+    grade = data.get('grade', 0)
+    class_num = data.get('class_num', 0)
+    
+    try:
+        count = 0
+        for s in students_data:
+            vision = s.get('eyestright') or s.get('eyesight') or '정상'
+            if str(vision) == '2' or '이상' in str(vision): vision = '이상'
+            elif str(vision) == '1' or '정상' in str(vision): vision = '정상'
+            
+            student = Student(
+                school_name=school,
+                grade=int(grade),
+                class_num=int(class_num),
+                student_number=int(s.get('student_number') or 0),
+                name=str(s.get('name', '')).strip(),
+                gender=str(s.get('gender', '남')),
+                eyestright=str(vision),
+                is_transferred=bool(s.get('is_transferred', False))
+            )
+            if student.name:
+                db.session.add(student)
+                count += 1
+        
+        db.session.commit()
+        print(f"Bulk added {count} students for {school} {grade}-{class_num}")
+        return jsonify({'status': 'success', 'count': count})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Bulk add error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/settings', methods=['GET', 'POST'])
