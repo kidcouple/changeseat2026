@@ -5,6 +5,8 @@ __pycache__/
 *.so
 .Python
 env/
+venv/
+ENV/
 build/
 develop-eggs/
 dist/
@@ -20,10 +22,6 @@ var/
 .installed.cfg
 *.egg
 
-# Virtual Environment
-venv/
-ENV/
-
 # IDE
 .idea/
 .vscode/
@@ -37,20 +35,33 @@ Thumbs.db
 # Logs
 *.log
 
-# Local development
+# Databases & Instance
+instance/
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.bak
+
+# Environment
 .env
+.flaskenv
 .env.local
 .env.*.local
+
+# Backup & Temp
+*.bak
+*.tmp
+temp/
+tests/test_results/
+brain/
+/tmp/
 
 # Static files (if using collectstatic)
 staticfiles/
 
 # Media files
 media/
-
-# Database
-*.sqlite3
-*.db
 
 # Cache
 .cache/
@@ -60,4 +71,4 @@ htmlcov/
 
 # Distribution
 dist/
-build/ 
+build/
