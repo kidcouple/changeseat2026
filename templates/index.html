@@ -458,11 +458,11 @@
         🚫 빈자리 선택 모드 활성화 중 (지정 후 '설정 저장' 필수)
         <button class="btn btn-secondary" style="margin-left: 15px; padding: 2px 10px;" onclick="closeDisabledMode()">완료</button>
     </div>
-    <div id="forcedModeBar" class="mode-bar" style="display: none; background: #e0f2fe; border-bottom: 2px solid #0ea5e9; padding: 15px; text-align: center; font-weight: bold; color: #0369a1; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-        <div style="max-width: 800px; margin: 0 auto; display: flex; align-items: center; justify-content: center; gap: 20px;">
-            <span style="font-size: 1.1rem;">🎯 고정석 지정 모드 활성화 중</span>
-            <button class="btn btn-primary" style="padding: 8px 25px; background: #0369a1; border: none; border-radius: 6px; color: white; cursor: pointer; font-size: 1rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="closeForcedMode()">✅ 설정 저장 및 나가기</button>
-        </div>
+    <!-- 🎯 고정석 지정 모드 오버레이 (칠판 중앙 배치) -->
+    <div id="forcedModeBar" style="display: none; position: absolute; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 450px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border: 2px solid #0ea5e9; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <div style="font-size: 1.1rem; font-weight: 800; color: #0369a1; margin-bottom: 15px;">🎯 고정석 지정 모드 활성화 중</div>
+        <p style="font-size: 0.9rem; color: #0c4a6e; margin-bottom: 20px;">학생들에게는 비밀로 유지됩니다.<br>지정 완료 후 아래 버튼을 눌러주세요.</p>
+        <button class="btn btn-primary" style="width: 100%; padding: 12px 0; background: #0369a1; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.1rem; font-weight: 700; transition: all 0.2s;" onclick="closeForcedMode()">✅ 설정 저장 및 숨기기</button>
     </div>
 
     <!-- 🧭 Sidebar -->
@@ -742,6 +742,7 @@
         let settingsMode = false;
         let disabledSeatMode = false;
         let forcedSeatMode = false;
+        let isResultRevealed = false; // 🚩 추가: 결과 공개 여부 (고정석 이름 노출 제어용)
         let tempRows = [];
         let shuffleSound = new Audio("{{ url_for('static', filename='countdown/effect_1.m4a') }}");
         let studentList = []; // 전체 학생 목록 캐시용
@@ -977,19 +978,24 @@
                 const forced = settings.forcedSeats && settings.forcedSeats.find(f => f.row == r && f.col == c);
 
                 if (forced) {
-                    // 🚩 중요: 관리 모드일 때만 이름을 보여주고, 아니면 빈칸으로 (절대 비밀 유지)
-                    seat.textContent = forcedSeatMode ? forced.name : "";
+                    // 🚩 중요: 관리 모드이거나 결과가 공개되었을 때만 이름을 보여줌
+                    seat.textContent = (forcedSeatMode || isResultRevealed) ? forced.name : "";
                     
                     if (forcedSeatMode) {
                         seat.classList.add('fixed');
                         seat.style.border = "3px solid #3b82f6";
                         seat.style.background = "#eff6ff";
+                    } else if (isResultRevealed) {
+                        // 결과 공개 시에는 평범한 자리처럼 보이게 (노란색/테두리 제거)
+                        seat.classList.remove('fixed');
+                        seat.style.border = "";
+                        seat.style.background = "";
                     } else {
                         seat.classList.remove('fixed');
                         seat.style.border = "";
                         seat.style.background = "";
                     }
-                } else if (s && !forcedSeatMode && !disabledSeatMode && !settingsMode) {
+                } else if (s && (isResultRevealed || !forcedSeatMode && !disabledSeatMode && !settingsMode)) {
                     seat.textContent = s.name;
                     seat.classList.remove('fixed');
                     seat.style.border = "";
@@ -1167,6 +1173,7 @@
         let shuffleResult = null;
 
         function onShuffleButtonClick() {
+            isResultRevealed = false; // 🚩 섞기 시작하면 다시 비밀로
             const v = document.getElementById('videoContainer');
             const video = document.getElementById('countdownVideo');
 
@@ -1216,6 +1223,7 @@
                     if (finalized) return;
                     finalized = true;
                     currentLayout = shuffleResult || [];
+                    isResultRevealed = true; // 🚩 결과 확정됨 (이름 노출 허용)
                     drawSeats();
                 };
 
