@@ -361,14 +361,16 @@ def get_history():
 def send_static(path):
     return send_from_directory('static', path)
 
+# 🚩 [중요] 모든 테이블 생성 및 마이그레이션 (WSGI 환경 대응)
+with app.app_context():
+    db.create_all()
+    try:
+        from sqlalchemy import text
+        db.session.execute(text('ALTER TABLE student ADD COLUMN is_transferred BOOLEAN DEFAULT 0'))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        try:
-            from sqlalchemy import text
-            db.session.execute(text('ALTER TABLE student ADD COLUMN is_transferred BOOLEAN DEFAULT 0'))
-            db.session.commit()
-        except:
-            db.session.rollback()
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
