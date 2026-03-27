@@ -351,11 +351,58 @@ def update_student(id):
 def get_history():
     school = request.args.get('school_id')
     history = SeatHistory.query.filter_by(school_name=school).order_by(SeatHistory.created_at.desc()).limit(10).all()
-    return jsonify([{
-        'id': h.id,
-        'created_at': h.created_at.isoformat(),
-        'layout_data': eval(h.layout_data) if h.layout_data else []
-    } for h in history])
+
+@app.route('/api/latest_state', methods=['GET'])
+def get_latest_state():
+    latest = SeatHistory.query.order_by(SeatHistory.created_at.desc()).first()
+    if not latest:
+        return jsonify({"found": False})
+
+    setting = Setting.query.filter_by(
+        school_name=latest.school_name,
+        grade=latest.grade,
+        class_num=latest.class_num
+    ).first()
+
+    return jsonify({
+        "found": True,
+        "school_info": {
+            "school_name": latest.school_name,
+            "grade": latest.grade,
+            "class_num": latest.class_num,
+            "motto": setting.motto if setting else ""
+        },
+        "settings": {
+            "motto": setting.motto if setting else "",
+            "numColumns": setting.num_columns if setting else 6,
+            "useAisleGap": setting.use_aisle_gap if setting else True,
+            "considerEyesight": setting.consider_eyesight if setting else False,
+            "separateGender": setting.separate_gender if setting else True,
+            "preventSameSeat": setting.prevent_same_seat if setting else False,
+            "preventSameSeatCount": setting.prevent_same_seat_count if setting else 1,
+            "disabledSeats": eval(setting.disabled_seats) if setting and setting.disabled_seats else [],
+            "forcedSeats": eval(setting.forced_seats) if setting and setting.forced_seats else []
+        },
+        "layout": eval(latest.layout_data) if latest.layout_data else []
+    })
+
+@app.route('/api/save_layout', methods=['POST'])
+def save_layout():
+    data = request.json
+    school = data.get('school_name')
+    grade = int(data.get('grade', 0))
+    class_num = int(data.get('class_num', 0))
+    layout = data.get('layout', [])
+
+    history = SeatHistory(
+        school_name=school,
+        grade=grade,
+        class_num=class_num,
+        layout_data=str(layout)
+    )
+    db.session.add(history)
+    db.session.commit()
+    return jsonify({"status": "success"})
 
 @app.route('/static/<path:path>')
 def send_static(path):
