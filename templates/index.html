@@ -465,6 +465,15 @@
         <button class="btn btn-primary" style="width: 100%; padding: 12px 0; background: #0369a1; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.1rem; font-weight: 700; transition: all 0.2s;" onclick="closeForcedMode()">✅ 설정 저장 및 숨기기</button>
     </div>
 
+    <!-- 🔄 Swap Mode Bar -->
+    <div id="swapModeBar"
+        style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #8b5cf6; color: white; padding: 10px 20px; z-index: 1000; text-align: center; font-weight: 700; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
+        🔄 1:1 자리 이동 모드 (이동할 두 자리를 차례로 선택하세요)
+        <button class="btn"
+            style="margin-left: 20px; padding: 4px 12px; background: white; color: #8b5cf6; border: none; border-radius: 4px; font-weight: 700;"
+            onclick="exitSwapMode()">이동 완료</button>
+    </div>
+
     <!-- 🧭 Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header"><span class="icon">📊</span> <span class="text">학급 관리</span></div>
@@ -998,8 +1007,15 @@
                             seat.style.border = "";
                             seat.style.background = "";
                         }
-                    } else if (s && (isResultRevealed || !forcedSeatMode && !disabledSeatMode && !settingsMode)) {
+                    } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
                         seat.textContent = s.name;
+                    }
+
+                    // 🚩 1:1 이동 모드 시 하이라이트
+                    if (swapMode && selectedSwapSeat && selectedSwapSeat.r == r && selectedSwapSeat.c == c) {
+                        seat.classList.add('selected');
+                        seat.style.border = "3px solid #8b5cf6";
+                        seat.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.5)";
                     }
 
                     seat.onclick = () => handleSeatClick(r, c);
@@ -1044,8 +1060,19 @@
                         seat.style.border = "";
                         seat.style.background = "";
                     }
-                } else if (s && (isResultRevealed || !forcedSeatMode && !disabledSeatMode && !settingsMode)) {
+                } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
                     seat.textContent = s.name;
+                    
+                    // 🚩 1:1 이동 모드 시 하이라이트
+                    if (swapMode && selectedSwapSeat && selectedSwapSeat.r == r && selectedSwapSeat.c == c) {
+                        seat.classList.add('selected');
+                        seat.style.border = "3px solid #8b5cf6";
+                        seat.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.5)";
+                    } else {
+                        seat.classList.remove('selected');
+                        seat.style.border = "";
+                        seat.style.boxShadow = "";
+                    }
                     seat.classList.remove('fixed');
                     seat.style.border = "";
                     seat.style.background = "";
@@ -1347,6 +1374,9 @@
                 });
         }
 
+        let swapMode = false;
+        let selectedSwapSeat = null;
+
         function handleSeatClick(r, c) {
             const coord = `${r}-${c}`;
             if (disabledSeatMode) {
@@ -1357,6 +1387,35 @@
                 drawSeats();
             } else if (forcedSeatMode) {
                 openStudentPickerForSeat(r, c);
+            } else if (swapMode) {
+                if (!selectedSwapSeat) {
+                    selectedSwapSeat = { r, c };
+                    drawSeats();
+                } else if (selectedSwapSeat.r === r && selectedSwapSeat.c === c) {
+                    selectedSwapSeat = null;
+                    drawSeats();
+                } else {
+                    swapSeats(selectedSwapSeat, { r, c });
+                    selectedSwapSeat = null;
+                    drawSeats();
+                }
+            }
+        }
+
+        function swapSeats(s1, s2) {
+            const idx1 = currentLayout.findIndex(s => s.row == s1.r && s.col == s1.c);
+            const idx2 = currentLayout.findIndex(s => s.row == s2.r && s.col == s2.c);
+
+            if (idx1 > -1 && idx2 > -1) {
+                const tempName = currentLayout[idx1].name;
+                currentLayout[idx1].name = currentLayout[idx2].name;
+                currentLayout[idx2].name = tempName;
+            } else if (idx1 > -1) {
+                currentLayout[idx1].row = s2.r;
+                currentLayout[idx1].col = s2.c;
+            } else if (idx2 > -1) {
+                currentLayout[idx2].row = s1.r;
+                currentLayout[idx2].col = s1.c;
             }
         }
 
@@ -1637,7 +1696,22 @@
         }
 
         function onManualSwapClick() {
-            alert('1:1 자리 이동 기능은 준비 중입니다.');
+            enterSwapMode();
+        }
+
+        function enterSwapMode() {
+            swapMode = true;
+            selectedSwapSeat = null;
+            document.getElementById('swapModeBar').style.display = 'block';
+            drawSeats();
+        }
+
+        function exitSwapMode() {
+            swapMode = false;
+            selectedSwapSeat = null;
+            document.getElementById('swapModeBar').style.display = 'none';
+            drawSeats();
+            alert('이동이 완료되었습니다. 변경사항을 저장하려면 꼭 [저장] 버튼을 눌러주세요!');
         }
 
         function onSeatHistoryClick() {
