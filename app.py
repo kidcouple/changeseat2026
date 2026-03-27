@@ -38,6 +38,7 @@ class Setting(db.Model):
     prevent_same_seat_count = db.Column(db.Integer, default=1)
     disabled_seats = db.Column(db.Text)  # JSON string
     forced_seats = db.Column(db.Text)    # JSON string
+    last_active_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class SeatHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -221,6 +222,7 @@ def handle_settings():
         setting.prevent_same_seat_count = data.get('preventSameSeatCount', 1)
         setting.disabled_seats = str(data.get('disabledSeats', []))
         setting.forced_seats = str(data.get('forcedSeats', []))
+        setting.last_active_at = datetime.utcnow()
         
         db.session.commit()
         return jsonify({"status": "success"})
@@ -276,6 +278,12 @@ def shuffle_students():
         layout_data=str(layout)
     )
     db.session.add(history)
+    
+    # 🚩 배치 실행 시 해당 학급을 '최근 활성화 학급'으로 갱신
+    setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
+    if setting:
+        setting.last_active_at = datetime.utcnow()
+        
     db.session.commit()
     
     return jsonify({'layout': layout})
@@ -351,25 +359,54 @@ def update_student(id):
 def get_history():
     school = request.args.get('school_id')
     history = SeatHistory.query.filter_by(school_name=school).order_by(SeatHistory.created_at.desc()).limit(10).all()
+    return jsonify([{
+        'id': h.id,
+        'created_at': h.created_at.isoformat(),
+        'layout_data': eval(h.layout_data) if h.layout_data else []
+    } for h in history])
 
 @app.route('/api/latest_state', methods=['GET'])
 def get_latest_state():
-    latest = SeatHistory.query.order_by(SeatHistory.created_at.desc()).first()
-    if not latest:
+    # 1. 가장 최근에 배치(Shuffle/Save)된 기록 찾기
+    latest_history = SeatHistory.query.order_by(SeatHistory.created_at.desc()).first()
+    
+    # 2. 가장 최근에 설정이 변경된 학급 찾기
+    latest_setting = Setting.query.order_by(Setting.last_active_at.desc()).first()
+    
+    if not latest_history and not latest_setting:
         return jsonify({"found": False})
 
+    # 3. 둘 중 더 최근 것을 기준으로 학급 정보 결정
+    # (배치 기록이 없거나, 설정 변경이 더 최근인 경우 설정을 우선함)
+    target = None
+    if latest_history and latest_setting:
+        if latest_history.created_at > latest_setting.last_active_at:
+            target = latest_history
+        else:
+            target = latest_setting
+    else:
+        target = latest_history or latest_setting
+
+    # 해당 학급의 최신 설정 가져오기
     setting = Setting.query.filter_by(
-        school_name=latest.school_name,
-        grade=latest.grade,
-        class_num=latest.class_num
+        school_name=target.school_name,
+        grade=target.grade,
+        class_num=target.class_num
     ).first()
+
+    # 해당 학급의 최신 배치 기록 가져오기 (target이 history가 아닐 수도 있으므로 재검색)
+    history = SeatHistory.query.filter_by(
+        school_name=target.school_name,
+        grade=target.grade,
+        class_num=target.class_num
+    ).order_by(SeatHistory.created_at.desc()).first()
 
     return jsonify({
         "found": True,
         "school_info": {
-            "school_name": latest.school_name,
-            "grade": latest.grade,
-            "class_num": latest.class_num,
+            "school_name": target.school_name,
+            "grade": target.grade,
+            "class_num": target.class_num,
             "motto": setting.motto if setting else ""
         },
         "settings": {
@@ -383,7 +420,7 @@ def get_latest_state():
             "disabledSeats": eval(setting.disabled_seats) if setting and setting.disabled_seats else [],
             "forcedSeats": eval(setting.forced_seats) if setting and setting.forced_seats else []
         },
-        "layout": eval(latest.layout_data) if latest.layout_data else []
+        "layout": eval(history.layout_data) if history and history.layout_data else []
     })
 
 @app.route('/api/save_layout', methods=['POST'])
@@ -401,6 +438,12 @@ def save_layout():
         layout_data=str(layout)
     )
     db.session.add(history)
+    
+    # 🚩 수동 저장 시에도 해당 학급을 '최근 활성화 학급'으로 갱신
+    setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
+    if setting:
+        setting.last_active_at = datetime.utcnow()
+        
     db.session.commit()
     return jsonify({"status": "success"})
 
@@ -414,6 +457,13 @@ with app.app_context():
     try:
         from sqlalchemy import text
         db.session.execute(text('ALTER TABLE student ADD COLUMN is_transferred BOOLEAN DEFAULT 0'))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    try:
+        from sqlalchemy import text
+        db.session.execute(text('ALTER TABLE setting ADD COLUMN last_active_at DATETIME'))
         db.session.commit()
     except:
         db.session.rollback()

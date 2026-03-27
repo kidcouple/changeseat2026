@@ -597,9 +597,14 @@
                 </div>
             </div>
 
-            <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: flex-end;">
-                <button class="btn btn-primary" onclick="saveSettings()">설정 저장 💾</button>
-                <button class="btn btn-secondary" onclick="closeModal('settingsModal')">취소</button>
+            <div style="margin-top: 25px; display: flex; gap: 10px; justify-content: space-between; align-items: center;">
+                <div style="font-size: 0.8rem; color: #64748b; font-weight: 500;">
+                    <i class="fas fa-sync-alt" style="margin-right: 4px;"></i> 설정 저장 시 모든 기기에 동기화됩니다.
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" onclick="saveSettings()">설정 저장 💾</button>
+                    <button class="btn btn-secondary" onclick="closeModal('settingsModal')">취소</button>
+                </div>
             </div>
         </div>
     </div>
