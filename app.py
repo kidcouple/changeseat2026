@@ -468,6 +468,16 @@ with app.app_context():
     except:
         db.session.rollback()
 
+    # 🚩 모든 테이블의 학교 이름 공백 제거 (소급 적용)
+    try:
+        from sqlalchemy import text
+        db.session.execute(text("UPDATE student SET school_name = TRIM(school_name)"))
+        db.session.execute(text("UPDATE setting SET school_name = TRIM(school_name)"))
+        db.session.execute(text("UPDATE seat_history SET school_name = TRIM(school_name)"))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
     # 🚩 기존 데이터 소급 적용 (오늘 데이터 보존을 위해 현재 시간으로 초기화)
     try:
         from sqlalchemy import text
