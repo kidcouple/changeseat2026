@@ -981,18 +981,22 @@
                     }
 
                     if (forced) {
-                        // 🚩 중요: 관리 모드일 때만 이름을 보여주고, 아니면 빈칸으로 (절대 비밀 유지)
-                        seat.textContent = forcedSeatMode ? forced.name : "";
+                        // 🚩 중요: 관리 모드이거나 결과가 공개되었을 때만 이름을 보여줌
+                        seat.textContent = (forcedSeatMode || isResultRevealed) ? forced.name : "";
                         
                         // 🚩 중요: 관리 모드일 때만 'fixed' 클래스를 추가하여 노란색/테두리 효과를 허용함
                         if (forcedSeatMode) {
                             seat.classList.add('fixed');
                             seat.style.border = "3px solid #3b82f6";
                             seat.style.background = "#eff6ff";
+                        } else if (isResultRevealed) {
+                            // 결과 공개 시에는 특수 효과 제거
+                            seat.classList.remove('fixed');
+                            seat.style.border = "";
+                            seat.style.background = "";
                         }
-                    } else if (s && !forcedSeatMode && !disabledSeatMode && !settingsMode) {
+                    } else if (s && (isResultRevealed || !forcedSeatMode && !disabledSeatMode && !settingsMode)) {
                         seat.textContent = s.name;
-                        // 🚩 중요: 학생용 화면에서는 s.is_fixed 정보가 있어도 'fixed' 클래스를 추가하지 않음 (비밀 유지 핵심)
                     }
 
                     seat.onclick = () => handleSeatClick(r, c);
