@@ -476,6 +476,14 @@ with app.app_context():
     except:
         db.session.rollback()
 
+    # 🚩 1학년 6반 3월 26일자 데이터 정리 (사용자 요청)
+    try:
+        from sqlalchemy import text
+        db.session.execute(text("DELETE FROM seat_history WHERE grade=1 AND class_num=6 AND created_at LIKE '2026-03-26%'"))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
