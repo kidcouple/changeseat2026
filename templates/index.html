@@ -907,7 +907,10 @@
 
         function loadSchoolInfo(shouldRefresh = true) {
             const saved = localStorage.getItem('schoolInfo');
-            if (saved) schoolInfo = JSON.parse(saved);
+            if (saved) {
+                schoolInfo = JSON.parse(saved);
+                if (schoolInfo.school_name) schoolInfo.school_name = schoolInfo.school_name.trim();
+            }
             if (shouldRefresh) requestRefresh();
         }
 
@@ -1324,12 +1327,21 @@
         }
 
         function fetchStudents(shouldRefresh = true) {
-            return fetch(`/api/students?school_name=${schoolInfo.school_name}&grade=${schoolInfo.grade}&class_num=${schoolInfo.class_num}`)
+            const sn = (schoolInfo.school_name || '').trim();
+            return fetch(`/api/students?school_name=${sn}&grade=${schoolInfo.grade}&class_num=${schoolInfo.class_num}`)
                 .then(r => r.json()).then(data => {
                     studentList = data; // 캐시
-                    // 🚩 중요: 이미 배치 정보(currentLayout)가 있는 상태라면 명단만 업데이트하고 배치는 건드리지 않음
+                    
+                    // 🚩 중요: 이미 배치 정보(currentLayout)가 있는 상태라면 명단만 업데이트
+                    // 만약 명단만 있고 위치가 없다면 (새로 시작하거나 데이터 삭제 시) 기본 위치 할당
                     if (!currentLayout || currentLayout.length === 0 || !currentLayout[0].row) {
-                        currentLayout = data;
+                        const cols = parseInt(settings.numColumns) || 6;
+                        currentLayout = data.map((s, idx) => {
+                            // 단순 순차 배치 (행/열 계산)
+                            const row = Math.floor(idx / cols) + 1;
+                            const col = (idx % cols) + 1;
+                            return { ...s, row, col };
+                        });
                     }
                     if (shouldRefresh) requestRefresh();
                 });
