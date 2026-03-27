@@ -272,14 +272,6 @@ def shuffle_students():
                 layout.append({'name': s.name, 'row': r, 'col': c})
                 student_idx += 1
                 
-    history = SeatHistory(
-        school_name=school,
-        grade=grade,
-        class_num=class_num,
-        layout_data=str(layout)
-    )
-    db.session.add(history)
-    
     # 🚩 배치 실행 시 해당 학급을 '최근 활성화 학급'으로 갱신
     setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
     if setting:
