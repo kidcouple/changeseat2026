@@ -1323,7 +1323,10 @@
             return fetch(`/api/students?school_name=${schoolInfo.school_name}&grade=${schoolInfo.grade}&class_num=${schoolInfo.class_num}`)
                 .then(r => r.json()).then(data => {
                     studentList = data; // 캐시
-                    currentLayout = data;
+                    // 🚩 중요: 이미 배치 정보(currentLayout)가 있는 상태라면 명단만 업데이트하고 배치는 건드리지 않음
+                    if (!currentLayout || currentLayout.length === 0 || !currentLayout[0].row) {
+                        currentLayout = data;
+                    }
                     if (shouldRefresh) requestRefresh();
                 });
         }
@@ -1624,7 +1627,7 @@
         function onSeatHistoryClick() {
             const m = document.getElementById('seatHistoryModal');
             m.style.display = 'block';
-            fetch(`/api/seat_history?school_id=${schoolInfo.school_name}`)
+            fetch(`/api/seat_history?school_id=${schoolInfo.school_name}&grade=${schoolInfo.grade}&class_num=${schoolInfo.class_num}`)
                 .then(r => r.json()).then(data => {
                     const b = document.getElementById('historyList');
                     if (!data || data.length === 0) {

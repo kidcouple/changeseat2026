@@ -64,7 +64,7 @@ def get_students():
         try: return int(float(v)) if v is not None and str(v).strip() else default
         except: return default
 
-    school_name = school_name or ''
+    school_name = (school_name or '').strip()
     grade = safe_int(grade)
     class_num = safe_int(class_num)
 
@@ -99,7 +99,7 @@ def add_student():
             except: return default
 
         # Body와 URL 파라미터 모두 확인 (하이브리드 지원)
-        school = data.get('school_name') or args.get('school_name', '')
+        school = (data.get('school_name') or args.get('school_name', '')).strip()
         grade = data.get('grade') or args.get('grade')
         class_num = data.get('class_num') or args.get('class_num')
 
@@ -109,7 +109,7 @@ def add_student():
         elif str(vision) == '1' or '정상' in str(vision): vision = '정상'
 
         student = Student(
-            school_name=str(school),
+            school_name=school,
             grade=safe_int(grade),
             class_num=safe_int(class_num),
             student_number=safe_int(data.get('student_number')),
@@ -140,6 +140,7 @@ def bulk_add_students():
     
     try:
         count = 0
+        school = school.strip()
         for s in students_data:
             vision = s.get('eyestright') or s.get('eyesight') or '정상'
             if str(vision) == '2' or '이상' in str(vision): vision = '이상'
@@ -173,7 +174,7 @@ def handle_settings():
         try: return int(float(v)) if v is not None and str(v).strip() else default
         except: return default
 
-    school = request.args.get('school', '')
+    school = (request.args.get('school', '')).strip()
     grade = safe_int(request.args.get('grade'))
     class_num = safe_int(request.args.get('class_num'))
     
@@ -230,7 +231,7 @@ def handle_settings():
 @app.route('/api/shuffle', methods=['POST'])
 def shuffle_students():
     data = request.json
-    school = data.get('school_name') or data.get('school') or data.get('school_id')
+    school = (data.get('school_name') or data.get('school') or data.get('school_id') or '').strip()
     grade = int(data.get('grade', 0))
     class_num = int(data.get('class_num', 0))
     cols = int(data.get('num_columns', 6))
@@ -357,8 +358,17 @@ def update_student(id):
 
 @app.route('/api/seat_history', methods=['GET'])
 def get_history():
-    school = request.args.get('school_id')
-    history = SeatHistory.query.filter_by(school_name=school).order_by(SeatHistory.created_at.desc()).limit(10).all()
+    school = (request.args.get('school_id') or '').strip()
+    grade = request.args.get('grade')
+    class_num = request.args.get('class_num')
+    
+    query = SeatHistory.query.filter_by(school_name=school)
+    if grade:
+        query = query.filter_by(grade=int(grade))
+    if class_num:
+        query = query.filter_by(class_num=int(class_num))
+        
+    history = query.order_by(SeatHistory.created_at.desc()).limit(10).all()
     return jsonify([{
         'id': h.id,
         'created_at': h.created_at.isoformat(),
@@ -377,15 +387,13 @@ def get_latest_state():
         return jsonify({"found": False})
 
     # 3. 둘 중 더 최근 것을 기준으로 학급 정보 결정
-    # (배치 기록이 없거나, 설정 변경이 더 최근인 경우 설정을 우선함)
-    target = None
-    if latest_history and latest_setting:
-        if latest_history.created_at > latest_setting.last_active_at:
-            target = latest_history
-        else:
-            target = latest_setting
+    t1 = latest_history.created_at if latest_history else datetime.min
+    t2 = latest_setting.last_active_at if latest_setting and latest_setting.last_active_at else datetime.min
+    
+    if t1 >= t2:
+        target = latest_history
     else:
-        target = latest_history or latest_setting
+        target = latest_setting
 
     # 해당 학급의 최신 설정 가져오기
     setting = Setting.query.filter_by(
@@ -426,7 +434,7 @@ def get_latest_state():
 @app.route('/api/save_layout', methods=['POST'])
 def save_layout():
     data = request.json
-    school = data.get('school_name')
+    school = (data.get('school_name') or '').strip()
     grade = int(data.get('grade', 0))
     class_num = int(data.get('class_num', 0))
     layout = data.get('layout', [])
@@ -464,6 +472,14 @@ with app.app_context():
     try:
         from sqlalchemy import text
         db.session.execute(text('ALTER TABLE setting ADD COLUMN last_active_at DATETIME'))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    # 🚩 기존 데이터 소급 적용 (오늘 데이터 보존을 위해 현재 시간으로 초기화)
+    try:
+        from sqlalchemy import text
+        db.session.execute(text('UPDATE setting SET last_active_at = :now WHERE last_active_at IS NULL'), {'now': datetime.utcnow()})
         db.session.commit()
     except:
         db.session.rollback()
