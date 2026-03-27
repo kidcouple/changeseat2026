@@ -319,7 +319,7 @@
 
         .form-group input:focus {
             border-color: #3b82f6;
-            ring: 2px solid #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
         .btn {
@@ -1406,16 +1406,50 @@
             const idx1 = currentLayout.findIndex(s => s.row == s1.r && s.col == s1.c);
             const idx2 = currentLayout.findIndex(s => s.row == s2.r && s.col == s2.c);
 
+            // 1. Swap student data objects (including all properties like gender, eyesight, etc.)
             if (idx1 > -1 && idx2 > -1) {
-                const tempName = currentLayout[idx1].name;
-                currentLayout[idx1].name = currentLayout[idx2].name;
-                currentLayout[idx2].name = tempName;
+                // Both seats occupied: swap their row/col attributes in the objects
+                const student1 = currentLayout[idx1];
+                const student2 = currentLayout[idx2];
+                
+                student1.row = s2.r;
+                student1.col = s2.c;
+                student2.row = s1.r;
+                student2.col = s1.c;
+                
+                // Synchronize Forced Seats if applicable
+                syncForcedSeat(student1.name, s2.r, s2.c);
+                syncForcedSeat(student2.name, s1.r, s1.c);
+                
             } else if (idx1 > -1) {
-                currentLayout[idx1].row = s2.r;
-                currentLayout[idx1].col = s2.c;
+                // Only first seat occupied: move student to empty seat
+                const student1 = currentLayout[idx1];
+                student1.row = s2.r;
+                student1.col = s2.c;
+                
+                // Synchronize Forced Seat if applicable
+                syncForcedSeat(student1.name, s2.r, s2.c);
+                
             } else if (idx2 > -1) {
-                currentLayout[idx2].row = s1.r;
-                currentLayout[idx2].col = s1.c;
+                // Only second seat occupied: move student to first seat
+                const student2 = currentLayout[idx2];
+                student2.row = s1.r;
+                student2.col = s1.c;
+                
+                // Synchronize Forced Seat if applicable
+                syncForcedSeat(student2.name, s1.r, s1.c);
+            }
+        }
+
+        // 🚩 고정석 정보 동기화 유틸리티
+        function syncForcedSeat(name, newRow, newCol) {
+            if (!settings.forcedSeats) return;
+            const forcedIdx = settings.forcedSeats.findIndex(f => f.name === name);
+            if (forcedIdx > -1) {
+                console.log(`Syncing forced seat for ${name} to (${newRow}, ${newCol})`);
+                settings.forcedSeats[forcedIdx].row = newRow;
+                settings.forcedSeats[forcedIdx].col = newCol;
+                updateForcedSeatStatus();
             }
         }
 
@@ -1711,7 +1745,18 @@
             selectedSwapSeat = null;
             document.getElementById('swapModeBar').style.display = 'none';
             drawSeats();
-            alert('이동이 완료되었습니다. 변경사항을 저장하려면 꼭 [저장] 버튼을 눌러주세요!');
+            
+            // 🚩 저장 유도 강조 (저장 안 하면 손실됨)
+            const saveBtn = document.querySelector('.sidebar-item[onclick="onSaveLayoutClick()"]');
+            if (saveBtn) {
+                saveBtn.style.background = "#22c55e"; // 초록색 하이라이트
+                saveBtn.style.color = "white";
+                setTimeout(() => {
+                    saveBtn.style.background = "";
+                    saveBtn.style.color = "";
+                }, 5000);
+            }
+            alert('자리가 성공적으로 변경되었습니다! 변경사항을 유지하려면 반드시 사이드바의 [저장] 💾 버튼을 눌러주세요.');
         }
 
         function onSeatHistoryClick() {
