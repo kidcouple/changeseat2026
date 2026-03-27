@@ -367,6 +367,17 @@ def get_history():
         'layout_data': eval(h.layout_data) if h.layout_data else []
     } for h in history])
 
+@app.route('/api/seat_history/<int:id>', methods=['DELETE'])
+def delete_history(id):
+    history = SeatHistory.query.get_or_404(id)
+    try:
+        db.session.delete(history)
+        db.session.commit()
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/latest_state', methods=['GET'])
 def get_latest_state():
     # 1. 가장 최근에 배치(Shuffle/Save)된 기록 찾기
