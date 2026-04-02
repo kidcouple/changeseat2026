@@ -983,32 +983,34 @@
                     seat.dataset.col = c;
                     const coord = `${r}-${c}`;
 
-                    // --- 데이터 매핑 및 스타일 적용 (단일 패스) ---
+                    // --- 데이터 매핑 및 스타일 결정 (중복 방지 로직 적용) ---
                     const s = currentLayout.find(item => item.row == r && item.col == c);
                     const forced = settings.forcedSeats && settings.forcedSeats.find(f => f.row == r && f.col == c);
+
+                    let seatText = "";
+                    if (forced && forcedSeatMode) {
+                        // 1. 강제 지정 모드일 때는 강제 지정된 이름을 우선 표시
+                        seatText = forced.name;
+                        seat.classList.add('fixed');
+                        seat.style.border = "3px solid #3b82f6";
+                        seat.style.background = "#eff6ff";
+                    } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
+                        // 2. 그 외에는 현재 배치된 데이터(결과 또는 이력)를 우선 표시
+                        seatText = s.name;
+                        seat.classList.remove('fixed');
+                        seat.style.border = "";
+                        seat.style.background = "";
+                    } else if (forced && isResultRevealed) {
+                        // 3. 배치 데이터에는 없지만 강제 지정된 경우 (결과 공개 시)
+                        seatText = forced.name;
+                        seat.classList.remove('fixed');
+                    }
+
+                    seat.textContent = seatText;
 
                     if (settings.disabledSeats.includes(coord)) {
                         seat.classList.add('disabled');
                         if (disabledSeatMode || settingsMode) seat.style.opacity = "0.3";
-                    }
-
-                    if (forced) {
-                        // 🚩 중요: 관리 모드이거나 결과가 공개되었을 때만 이름을 보여줌
-                        seat.textContent = (forcedSeatMode || isResultRevealed) ? forced.name : "";
-                        
-                        // 🚩 중요: 관리 모드일 때만 'fixed' 클래스를 추가하여 노란색/테두리 효과를 허용함
-                        if (forcedSeatMode) {
-                            seat.classList.add('fixed');
-                            seat.style.border = "3px solid #3b82f6";
-                            seat.style.background = "#eff6ff";
-                        } else if (isResultRevealed) {
-                            // 결과 공개 시에는 특수 효과 제거
-                            seat.classList.remove('fixed');
-                            seat.style.border = "";
-                            seat.style.background = "";
-                        }
-                    } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
-                        seat.textContent = s.name;
                     }
 
                     // 🚩 1:1 이동 모드 시 하이라이트
@@ -1042,45 +1044,37 @@
                 const s = currentLayout.find(item => item.row == r && item.col == c);
                 const forced = settings.forcedSeats && settings.forcedSeats.find(f => f.row == r && f.col == c);
 
-                if (forced) {
-                    // 🚩 중요: 관리 모드이거나 결과가 공개되었을 때만 이름을 보여줌
-                    seat.textContent = (forcedSeatMode || isResultRevealed) ? forced.name : "";
-                    
-                    if (forcedSeatMode) {
-                        seat.classList.add('fixed');
-                        seat.style.border = "3px solid #3b82f6";
-                        seat.style.background = "#eff6ff";
-                    } else if (isResultRevealed) {
-                        // 결과 공개 시에는 평범한 자리처럼 보이게 (노란색/테두리 제거)
-                        seat.classList.remove('fixed');
-                        seat.style.border = "";
-                        seat.style.background = "";
-                    } else {
-                        seat.classList.remove('fixed');
-                        seat.style.border = "";
-                        seat.style.background = "";
-                    }
+                let seatText = "";
+                if (forced && forcedSeatMode) {
+                    seatText = forced.name;
+                    seat.classList.add('fixed');
+                    seat.style.border = "3px solid #3b82f6";
+                    seat.style.background = "#eff6ff";
                 } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
-                    seat.textContent = s.name;
-                    
-                    // 🚩 1:1 이동 모드 시 하이라이트
-                    if (swapMode && selectedSwapSeat && selectedSwapSeat.r == r && selectedSwapSeat.c == c) {
-                        seat.classList.add('selected');
-                        seat.style.border = "3px solid #8b5cf6";
-                        seat.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.5)";
-                    } else {
-                        seat.classList.remove('selected');
+                    seatText = s.name;
+                    seat.classList.remove('fixed');
+                    seat.style.border = "";
+                    seat.style.background = "";
+                } else if (forced && isResultRevealed) {
+                    seatText = forced.name;
+                    seat.classList.remove('fixed');
+                    seat.style.border = "";
+                    seat.style.background = "";
+                }
+
+                seat.textContent = seatText;
+
+                // 🚩 1:1 이동 모드 시 하이라이트 (공통 적용)
+                if (swapMode && selectedSwapSeat && selectedSwapSeat.r == r && selectedSwapSeat.c == c) {
+                    seat.classList.add('selected');
+                    seat.style.border = "3px solid #8b5cf6";
+                    seat.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.5)";
+                } else if (seatText && !forcedSeatMode) {
+                    seat.classList.remove('selected');
+                    if (!seat.classList.contains('fixed')) {
                         seat.style.border = "";
                         seat.style.boxShadow = "";
                     }
-                    seat.classList.remove('fixed');
-                    seat.style.border = "";
-                    seat.style.background = "";
-                } else {
-                    seat.textContent = "";
-                    seat.classList.remove('fixed');
-                    seat.style.border = "";
-                    seat.style.background = "";
                 }
             });
         }
@@ -1809,7 +1803,8 @@
 
         function restoreLayoutFromData(data) {
             if (confirm('이 배치를 복원하시겠습니까?')) {
-                currentLayout = data;
+                currentLayout = data || [];
+                isResultRevealed = true; // 🚩 이력을 불러온 경우에도 결과가 공개된 상태로 취급
                 drawSeats();
                 closeModal('seatHistoryModal');
                 alert('배치가 복원되었습니다.');
