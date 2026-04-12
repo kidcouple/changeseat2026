@@ -487,6 +487,7 @@ def get_latest_state():
             "separateGender": setting.separate_gender if setting else True,
             "preventSameSeat": setting.prevent_same_seat if setting else False,
             "preventSameSeatCount": setting.prevent_same_seat_count if setting else 1,
+            "preventSamePair": bool(setting.prevent_same_pair) if setting and setting.prevent_same_pair is not None else False,
             "disabledSeats": eval(setting.disabled_seats) if setting and setting.disabled_seats else [],
             "forcedSeats": eval(setting.forced_seats) if setting and setting.forced_seats else []
         },
