@@ -36,9 +36,19 @@ class Setting(db.Model):
     separate_gender = db.Column(db.Boolean, default=True)
     prevent_same_seat = db.Column(db.Boolean, default=False)
     prevent_same_seat_count = db.Column(db.Integer, default=1)
+    prevent_same_pair = db.Column(db.Boolean, default=False)
     disabled_seats = db.Column(db.Text)  # JSON string
     forced_seats = db.Column(db.Text)    # JSON string
     last_active_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PairHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    school_name = db.Column(db.String(100))
+    grade = db.Column(db.Integer)
+    class_num = db.Column(db.Integer)
+    name = db.Column(db.String(100))
+    pair_name = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class SeatHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -191,10 +201,11 @@ def handle_settings():
                 "separateGender": True,
                 "preventSameSeat": False,
                 "preventSameSeatCount": 1,
+                "preventSamePair": False,
                 "disabledSeats": [],
                 "forcedSeats": []
             })
-        
+
         return jsonify({
             "motto": setting.motto,
             "numColumns": setting.num_columns,
@@ -203,17 +214,16 @@ def handle_settings():
             "separateGender": setting.separate_gender,
             "preventSameSeat": setting.prevent_same_seat,
             "preventSameSeatCount": setting.prevent_same_seat_count,
+            "preventSamePair": bool(setting.prevent_same_pair) if setting.prevent_same_pair is not None else False,
             "disabledSeats": eval(setting.disabled_seats) if setting.disabled_seats else [],
             "forcedSeats": eval(setting.forced_seats) if setting.forced_seats else []
         })
-    
+
     else: # POST
         data = request.json
         if not setting:
-            # 존재하지 않으면 새로 생성
             setting = Setting(school_name=school, grade=grade, class_num=class_num)
             db.session.add(setting)
-        # 이미 세션에 있거나 방금 add된 setting 객체의 속성을 변경
         setting.motto = data.get('motto', "")
         setting.num_columns = data.get('numColumns', 6)
         setting.use_aisle_gap = data.get('useAisleGap', True)
@@ -221,6 +231,7 @@ def handle_settings():
         setting.separate_gender = data.get('separateGender', True)
         setting.prevent_same_seat = data.get('preventSameSeat', False)
         setting.prevent_same_seat_count = data.get('preventSameSeatCount', 1)
+        setting.prevent_same_pair = data.get('preventSamePair', False)
         setting.disabled_seats = str(data.get('disabledSeats', []))
         setting.forced_seats = str(data.get('forcedSeats', []))
         setting.last_active_at = datetime.utcnow()
@@ -244,41 +255,89 @@ def shuffle_students():
     
     students = Student.query.filter_by(school_name=school, grade=grade, class_num=class_num, is_transferred=False).all()
     print(f"Students found: {len(students)}")
-    
+
     if not students:
         return jsonify({'layout': []})
-    
+
+    setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
+    use_aisle_gap = setting.use_aisle_gap if setting else True
+    prevent_same_pair = bool(setting.prevent_same_pair) if setting and setting.prevent_same_pair is not None else False
+    prevent_same_seat_count = setting.prevent_same_seat_count if setting else 1
+
     forced_names = [f['name'] for f in forced_seats]
     pool = [s for s in students if s.name not in forced_names]
-    random.shuffle(pool)
-    
-    rows = math.ceil((len(students) + len(disabled_seats)) / cols)
-    if rows < 5: rows = 5
-    
+
+    # 분단(aisle gap) 모드 여부: cols가 짝수이고 use_aisle_gap=True이면 분단 모드
+    is_bundan = use_aisle_gap and cols % 2 == 0
+
+    # 동일짝 금지: 짝 이력 로드
+    pair_history_map = {}
+    if prevent_same_pair and is_bundan:
+        for s in pool:
+            rows_ph = PairHistory.query.filter_by(
+                school_name=school, grade=grade, class_num=class_num, name=s.name
+            ).order_by(PairHistory.created_at.desc()).limit(prevent_same_seat_count).all()
+            pair_history_map[s.name] = [r.pair_name for r in rows_ph]
+
+    # 충돌 없는 배치 탐색 (최대 30회 재시도)
+    best_pool = pool[:]
+    best_conflicts = None
+    for attempt in range(30 if prevent_same_pair and is_bundan else 1):
+        if attempt > 0:
+            random.shuffle(pool)
+        conflicts = 0
+        if prevent_same_pair and is_bundan:
+            num_groups = cols // 2
+            idx = 0
+            # 임시 배치 순서로 짝 충돌 계산
+            temp = pool[:]
+            for r in range(1, 10):
+                for g in range(num_groups):
+                    col1 = g * 2 + 1
+                    col2 = g * 2 + 2
+                    if f"{r}-{col1}" in disabled_seats or f"{r}-{col2}" in disabled_seats:
+                        continue
+                    if idx + 1 < len(temp):
+                        n1 = temp[idx].name
+                        n2 = temp[idx + 1].name
+                        if n2 in pair_history_map.get(n1, []):
+                            conflicts += 1
+                        idx += 2
+                    elif idx < len(temp):
+                        idx += 1
+        if best_conflicts is None or conflicts < best_conflicts:
+            best_conflicts = conflicts
+            best_pool = pool[:]
+            if conflicts == 0:
+                break
+    pool = best_pool
+    random.shuffle(pool) if not (prevent_same_pair and is_bundan) else None
+
+    rows_count = math.ceil((len(students) + len(disabled_seats)) / cols)
+    if rows_count < 5: rows_count = 5
+
     layout = []
     occupied = set()
     for f in forced_seats:
         layout.append({'name': f['name'], 'row': f['row'], 'col': f['col']})
         occupied.add((f['row'], f['col']))
-    
+
     student_idx = 0
-    for r in range(1, rows + 1):
+    for r in range(1, rows_count + 1):
         for c in range(1, cols + 1):
             if (r, c) in occupied or f"{r}-{c}" in disabled_seats:
                 continue
-            
             if student_idx < len(pool):
                 s = pool[student_idx]
                 layout.append({'name': s.name, 'row': r, 'col': c})
                 student_idx += 1
-                
+
     # 🚩 배치 실행 시 해당 학급을 '최근 활성화 학급'으로 갱신
-    setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
     if setting:
         setting.last_active_at = datetime.utcnow()
-        
+
     db.session.commit()
-    
+
     return jsonify({'layout': layout})
 
 @app.route('/api/students/upload', methods=['POST'])
@@ -442,6 +501,7 @@ def save_layout():
     class_num = int(data.get('class_num', 0))
     layout = data.get('layout', [])
 
+    now = datetime.utcnow()
     history = SeatHistory(
         school_name=school,
         grade=grade,
@@ -449,12 +509,29 @@ def save_layout():
         layout_data=str(layout)
     )
     db.session.add(history)
-    
-    # 🚩 수동 저장 시에도 해당 학급을 '최근 활성화 학급'으로 갱신
+
+    # 분단 모드이면 짝 이력 저장
     setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
+    if setting and setting.use_aisle_gap:
+        cols = setting.num_columns
+        if cols % 2 == 0:
+            seat_map = {(s['row'], s['col']): s['name'] for s in layout if s.get('name')}
+            num_groups = cols // 2
+            max_row = max((s['row'] for s in layout if s.get('name')), default=0)
+            for r in range(1, max_row + 1):
+                for g in range(num_groups):
+                    col1 = g * 2 + 1
+                    col2 = g * 2 + 2
+                    n1 = seat_map.get((r, col1))
+                    n2 = seat_map.get((r, col2))
+                    if n1 and n2:
+                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=now))
+                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n2, pair_name=n1, created_at=now))
+
+    # 🚩 수동 저장 시에도 해당 학급을 '최근 활성화 학급'으로 갱신
     if setting:
-        setting.last_active_at = datetime.utcnow()
-        
+        setting.last_active_at = now
+
     db.session.commit()
     return jsonify({"status": "success"})
 
@@ -475,6 +552,13 @@ with app.app_context():
     try:
         from sqlalchemy import text
         db.session.execute(text('ALTER TABLE setting ADD COLUMN last_active_at DATETIME'))
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    try:
+        from sqlalchemy import text
+        db.session.execute(text('ALTER TABLE setting ADD COLUMN prevent_same_pair BOOLEAN DEFAULT 0'))
         db.session.commit()
     except:
         db.session.rollback()

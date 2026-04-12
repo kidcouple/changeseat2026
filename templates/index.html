@@ -574,10 +574,13 @@
                     <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
                         <input type="checkbox" id="preventSameSeat"> 이전 자리 방지
                     </label>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 0.9rem;">
+                        <input type="checkbox" id="preventSamePair"> 동일 짝 금지 (분단 모드)
+                    </label>
                     <div style="display: flex; align-items: center; gap: 5px;">
                         <input type="number" id="preventSameSeatCount" value="1" min="1" max="5"
                             style="width: 45px; padding: 4px;">
-                        <span style="font-size: 0.85rem;">회</span>
+                        <span style="font-size: 0.85rem;">회 (자리/짝 공통)</span>
                     </div>
                 </div>
             </div>
@@ -750,7 +753,7 @@
             motto: "", countdownText: "두구두구...",
             numColumns: 6, useAisleGap: true,
             considerEyesight: false, separateGender: true,
-            preventSameSeat: false, preventSameSeatCount: 1,
+            preventSameSeat: false, preventSameSeatCount: 1, preventSamePair: false,
             disabledSeats: []
         };
         let settingsMode = false;
@@ -1101,6 +1104,7 @@
             document.getElementById('separateGender').checked = settings.separateGender;
             document.getElementById('preventSameSeat').checked = settings.preventSameSeat;
             document.getElementById('preventSameSeatCount').value = settings.preventSameSeatCount;
+            document.getElementById('preventSamePair').checked = settings.preventSamePair || false;
 
             updateDisabledSeatCount();
             drawSeats();
@@ -1125,6 +1129,7 @@
             settings.separateGender = document.getElementById('separateGender').checked;
             settings.preventSameSeat = document.getElementById('preventSameSeat').checked;
             settings.preventSameSeatCount = document.getElementById('preventSameSeatCount').value;
+            settings.preventSamePair = document.getElementById('preventSamePair').checked;
 
             const r = await fetch(`/api/settings?school=${schoolInfo.school_name}&grade=${schoolInfo.grade}&class_num=${schoolInfo.class_num}`, {
                 method: 'POST',
