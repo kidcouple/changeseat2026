@@ -1387,14 +1387,26 @@
                     return;
                 }
 
-                // 가상의 "섞는 중" 데이터 생성 (고정석도 학생 모르게 흔들어야 함)
                 const seats = document.querySelectorAll('.seat:not(.disabled)');
                 const names = studentList.map(s => s.name);
 
                 seats.forEach(seat => {
-                    if (Math.random() > 0.3) { // 70% 확률로 이름 계속 바꿈
+                    const r = parseInt(seat.dataset.row);
+                    const c = parseInt(seat.dataset.col);
+
+                    const designated = (settings.designatedSeats || []).find(d => d.row == r && d.col == c);
+                    if (designated) {
+                        seat.textContent = designated.name;
+                        seat.style.color = "#1e293b";
+                        seat.style.background = "#dbeafe";
+                        seat.style.borderColor = "#3b82f6";
+                        seat.style.boxShadow = "0 0 8px rgba(59, 130, 246, 0.4)";
+                        return;
+                    }
+
+                    if (Math.random() > 0.3) {
                         seat.textContent = names[Math.floor(Math.random() * names.length)] || "...";
-                        seat.style.color = "#94a3b8"; // 흐릿하게
+                        seat.style.color = "#94a3b8";
                     }
                 });
             }, 60); // 60ms 간격으로 업데이트
