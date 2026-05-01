@@ -968,7 +968,8 @@
         function drawSeats() {
             const frame = document.getElementById('seatFrame');
             const cols = parseInt(settings.numColumns);
-            const count = (currentLayout && currentLayout.length > 0) ? currentLayout.length : 30;
+            const disabledCount = (settings.disabledSeats || []).length;
+            const count = (currentLayout && currentLayout.length > 0) ? (currentLayout.length + disabledCount) : 30;
             const rows = Math.max(5, Math.ceil(count / cols));
 
             // [최적화] 상태 변화가 없으면 리드로우 생략
@@ -1317,6 +1318,13 @@
 
             // 3. 결과 미리 통신 (백엔드 계산 시간 대비)
             const syncInfo = getSyncSchoolInfo();
+            const allForced = [
+                ...(settings.forcedSeats || []),
+                ...(settings.designatedSeats || [])
+            ];
+            const dedupedForced = Object.values(
+                allForced.reduce((acc, f) => { acc[f.name] = f; return acc; }, {})
+            );
             fetch('/api/shuffle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1324,31 +1332,10 @@
                     school: syncInfo.school_name, grade: syncInfo.grade, class_num: syncInfo.class_num,
                     num_columns: settings.numColumns,
                     disabled_seats: settings.disabledSeats,
-                    forced_seats: [
-                        ...(settings.forcedSeats || []),
-                        ...(settings.designatedSeats || [])
-                    ]
+                    forced_seats: dedupedForced
                 })
             }).then(r => r.json()).then(data => {
-                let layout = data.layout || [];
-                // 📌 지정석 및 고정석 학생들을 섞기 결과에 병합 (서버 결과에는 이들이 제외되어 있음)
-                const fixedPositions = [
-                    ...(settings.forcedSeats || []),
-                    ...(settings.designatedSeats || [])
-                ];
-                
-                fixedPositions.forEach(f => {
-                    const studentDetails = studentList.find(s => s.name === f.name) || { name: f.name, gender: '', eyestright: '' };
-                    layout.push({ 
-                        name: f.name, 
-                        row: f.row, 
-                        col: f.col, 
-                        gender: studentDetails.gender, 
-                        eyestright: studentDetails.eyestright,
-                        is_fixed: true 
-                    });
-                });
-                shuffleResult = layout;
+                shuffleResult = data.layout || [];
             });
 
             // 4. 영상 종료 후 좌석 원복 및 섞기 애니메이션 실행

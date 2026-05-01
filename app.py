@@ -266,6 +266,12 @@ def shuffle_students():
     prevent_same_pair = bool(setting.prevent_same_pair) if setting and setting.prevent_same_pair is not None else False
     prevent_same_seat_count = setting.prevent_same_seat_count if setting else 1
 
+    # 이름 기준 중복 제거 (forcedSeats + designatedSeats 합쳐서 올 때 동일 학생 중복 방지)
+    seen_names = {}
+    for f in forced_seats:
+        seen_names[f['name']] = f
+    forced_seats = list(seen_names.values())
+
     forced_names = [f['name'] for f in forced_seats]
     pool = [s for s in students if s.name not in forced_names]
 
