@@ -1324,19 +1324,30 @@
                     school: syncInfo.school_name, grade: syncInfo.grade, class_num: syncInfo.class_num,
                     num_columns: settings.numColumns,
                     disabled_seats: settings.disabledSeats,
-                    forced_seats: getForcedSeatsData()
+                    forced_seats: [
+                        ...(settings.forcedSeats || []),
+                        ...(settings.designatedSeats || [])
+                    ]
                 })
             }).then(r => r.json()).then(data => {
                 let layout = data.layout || [];
-                // 📌 지정석 학생을 섞기 결과에서 제거하고, 지정된 위치에 고정 배치
-                if (settings.designatedSeats && settings.designatedSeats.length > 0) {
-                    const designatedNames = settings.designatedSeats.map(d => d.name);
-                    layout = layout.filter(s => !designatedNames.includes(s.name));
-                    settings.designatedSeats.forEach(d => {
-                        const studentDetails = studentList.find(s => s.name === d.name) || { name: d.name, gender: '', eyestright: '' };
-                        layout.push({ name: d.name, row: d.row, col: d.col, gender: studentDetails.gender, eyestright: studentDetails.eyestright });
+                // 📌 지정석 및 고정석 학생들을 섞기 결과에 병합 (서버 결과에는 이들이 제외되어 있음)
+                const fixedPositions = [
+                    ...(settings.forcedSeats || []),
+                    ...(settings.designatedSeats || [])
+                ];
+                
+                fixedPositions.forEach(f => {
+                    const studentDetails = studentList.find(s => s.name === f.name) || { name: f.name, gender: '', eyestright: '' };
+                    layout.push({ 
+                        name: f.name, 
+                        row: f.row, 
+                        col: f.col, 
+                        gender: studentDetails.gender, 
+                        eyestright: studentDetails.eyestright,
+                        is_fixed: true 
                     });
-                }
+                });
                 shuffleResult = layout;
             });
 
@@ -1444,6 +1455,15 @@
             } else if (forcedSeatMode) {
                 openStudentPickerForSeat(r, c);
             } else if (swapMode) {
+                // 지정석 또는 고정석 여부 확인
+                const isFixed = (settings.designatedSeats || []).some(d => d.row === r && d.col === c) ||
+                                (settings.forcedSeats || []).some(f => f.row === r && f.col === c);
+                
+                if (isFixed) {
+                    alert('지정석 또는 고정석은 자리를 바꿀 수 없습니다.');
+                    return;
+                }
+
                 if (!selectedSwapSeat) {
                     selectedSwapSeat = { r, c };
                     drawSeats();
