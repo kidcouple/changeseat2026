@@ -266,11 +266,17 @@ def shuffle_students():
     prevent_same_pair = bool(setting.prevent_same_pair) if setting and setting.prevent_same_pair is not None else False
     prevent_same_seat_count = setting.prevent_same_seat_count if setting else 1
 
-    # 이름 기준 중복 제거 (forcedSeats + designatedSeats 합쳐서 올 때 동일 학생 중복 방지)
+    # 이름 기준 중복 제거 (같은 학생이 두 번 등장하면 마지막 좌표 사용)
     seen_names = {}
     for f in forced_seats:
         seen_names[f['name']] = f
     forced_seats = list(seen_names.values())
+
+    # 위치 기준 중복 제거 (같은 자리에 두 학생이 지정되면 마지막 학생 사용)
+    seen_pos = {}
+    for f in forced_seats:
+        seen_pos[(int(f['row']), int(f['col']))] = f
+    forced_seats = list(seen_pos.values())
 
     forced_names = [f['name'] for f in forced_seats]
     pool = [s for s in students if s.name not in forced_names]
@@ -327,8 +333,10 @@ def shuffle_students():
     layout = []
     occupied = set()
     for f in forced_seats:
-        layout.append({'name': f['name'], 'row': f['row'], 'col': f['col']})
-        occupied.add((f['row'], f['col']))
+        row_i = int(f['row'])
+        col_i = int(f['col'])
+        layout.append({'name': f['name'], 'row': row_i, 'col': col_i})
+        occupied.add((row_i, col_i))
 
     student_idx = 0
     for r in range(1, rows_count + 1):

@@ -1563,13 +1563,12 @@
         function pickStudentForSeat(name) {
             if (!settings.forcedSeats) settings.forcedSeats = [];
 
-            // 1. Remove ANY existing assignment for this seat
             settings.forcedSeats = settings.forcedSeats.filter(f => f.row !== pickingSeat.r || f.col !== pickingSeat.c);
 
             if (name) {
-                // 2. Remove ANY existing assignment for this student (if moved to a new seat)
                 settings.forcedSeats = settings.forcedSeats.filter(f => f.name !== name);
-                // 3. Add new assignment
+                // 같은 학생이 designatedSeats에도 있으면 제거 (중복 방지)
+                settings.designatedSeats = (settings.designatedSeats || []).filter(d => d.name !== name);
                 settings.forcedSeats.push({ name, row: pickingSeat.r, col: pickingSeat.c });
             }
 
@@ -1650,6 +1649,8 @@
             if (name) {
                 // 해당 학생의 다른 자리 지정 제거
                 settings.designatedSeats = settings.designatedSeats.filter(d => d.name !== name);
+                // 같은 학생이 forcedSeats에도 있으면 제거 (중복 방지)
+                settings.forcedSeats = (settings.forcedSeats || []).filter(f => f.name !== name);
                 settings.designatedSeats.push({ name, row: designatedPickingSeat.r, col: designatedPickingSeat.c });
             }
             closeModal('studentPickerModal');
