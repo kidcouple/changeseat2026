@@ -222,6 +222,13 @@
             border-color: #eab308 !important;
         }
 
+        /* 지정석 스타일 - 항상 파란색으로 표시 */
+        .seat.designated {
+            background: #dbeafe !important;
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.4) !important;
+        }
+
         .seat.disabled {
             opacity: 0;
             pointer-events: none;
@@ -465,6 +472,17 @@
         <button class="btn btn-primary" style="width: 100%; padding: 12px 0; background: #0369a1; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1.1rem; font-weight: 700; transition: all 0.2s;" onclick="closeForcedMode()">✅ 설정 저장 및 숨기기</button>
     </div>
 
+    <!-- 📌 지정석 모드 오버레이 -->
+    <div id="designatedModeBar" style="display: none; position: absolute; top: 100px; left: 50%; transform: translateX(-50%); z-index: 1000; width: 450px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border: 2px solid #3b82f6; border-radius: 12px; padding: 20px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+        <div style="font-size: 1.1rem; font-weight: 800; color: #1d4ed8; margin-bottom: 15px;">📌 지정석 설정 모드</div>
+        <p style="font-size: 0.9rem; color: #1e40af; margin-bottom: 8px;">자리를 클릭해 학생을 지정하세요.<br>지정된 자리(파란색)는 자리바꾸기 시에도 고정됩니다.</p>
+        <div id="designatedSeatsStatus" style="font-size: 0.85rem; color: #3b82f6; margin-bottom: 15px; font-weight: 600;">지정된 학생 없음</div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn" style="flex:1; background: #ef4444; color: white; border: none; border-radius: 8px; padding: 10px; cursor: pointer; font-weight: 700;" onclick="clearDesignatedSeats()">✕ 전체 해제</button>
+            <button class="btn btn-primary" style="flex:2; padding: 10px 0; background: #1d4ed8; border: none; border-radius: 8px; color: white; cursor: pointer; font-size: 1rem; font-weight: 700;" onclick="exitDesignatedSeatMode()">✅ 완료</button>
+        </div>
+    </div>
+
     <!-- 🔄 Swap Mode Bar -->
     <div id="swapModeBar"
         style="display: none; position: fixed; top: 0; left: 0; right: 0; background: #8b5cf6; color: white; padding: 10px 20px; z-index: 1000; text-align: center; font-weight: 700; box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);">
@@ -481,6 +499,11 @@
                 class="text">자리바꾸기</span></div>
         <div class="sidebar-item" onclick="onManualSwapClick()"><span class="icon">🔄</span> <span class="text">1:1 자리
                 이동</span></div>
+        <div class="sidebar-item" onclick="enterDesignatedSeatMode()" id="designatedSeatMenuItem"><span class="icon">📌</span> <span class="text">지정석</span></div>
+        <div id="designatedSubmenu" class="submenu">
+            <div class="sidebar-item submenu-item" onclick="enterDesignatedSeatMode()">📌 <span class="text">자리 지정</span></div>
+            <div class="sidebar-item submenu-item" onclick="clearDesignatedSeats()" style="color:#f87171;">✕ <span class="text">전체 해제</span></div>
+        </div>
         <div class="sidebar-item" onclick="toggleStudentSubmenu()"><span class="icon">👥</span> <span class="text">학생
                 정보</span></div>
         <div id="studentSubmenu" class="submenu">
@@ -754,11 +777,13 @@
             numColumns: 6, useAisleGap: true,
             considerEyesight: false, separateGender: true,
             preventSameSeat: false, preventSameSeatCount: 1, preventSamePair: false,
-            disabledSeats: []
+            disabledSeats: [],
+            designatedSeats: [] // 📌 지정석: [{name, row, col}, ...]
         };
         let settingsMode = false;
         let disabledSeatMode = false;
         let forcedSeatMode = false;
+        let designatedSeatMode = false; // 📌 지정석 모드
         let isResultRevealed = false; // 🚩 추가: 결과 공개 여부 (고정석 이름 노출 제어용)
         let tempRows = [];
         let shuffleSound = new Audio("{{ url_for('static', filename='countdown/effect_1.m4a') }}");
@@ -947,7 +972,7 @@
             const rows = Math.max(5, Math.ceil(count / cols));
 
             // [최적화] 상태 변화가 없으면 리드로우 생략
-            if (currentLayout.length > 0 && frame.dataset.cols == cols && frame.dataset.rows == rows && !settingsMode && !disabledSeatMode && !forcedSeatMode) {
+            if (currentLayout.length > 0 && frame.dataset.cols == cols && frame.dataset.rows == rows && !settingsMode && !disabledSeatMode && !forcedSeatMode && !designatedSeatMode) {
                 renderStudentNames();
                 return;
             }
@@ -989,18 +1014,28 @@
                     // --- 데이터 매핑 및 스타일 결정 (중복 방지 로직 적용) ---
                     const s = currentLayout.find(item => item.row == r && item.col == c);
                     const forced = settings.forcedSeats && settings.forcedSeats.find(f => f.row == r && f.col == c);
+                    const designated = settings.designatedSeats && settings.designatedSeats.find(d => d.row == r && d.col == c);
 
                     let seatText = "";
-                    if (forced && forcedSeatMode) {
+                    if (designated) {
+                        // 📌 지정석: 항상 파란색으로 학생 이름 표시
+                        seatText = designated.name;
+                        seat.classList.add('designated');
+                        if (designatedSeatMode) {
+                            seat.style.border = "3px solid #1d4ed8";
+                            seat.style.background = "#bfdbfe";
+                        }
+                    } else if (forced && forcedSeatMode) {
                         // 1. 강제 지정 모드일 때는 강제 지정된 이름을 우선 표시
                         seatText = forced.name;
                         seat.classList.add('fixed');
                         seat.style.border = "3px solid #3b82f6";
                         seat.style.background = "#eff6ff";
-                    } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
+                    } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode && !designatedSeatMode))) {
                         // 2. 그 외에는 현재 배치된 데이터(결과 또는 이력)를 우선 표시
                         seatText = s.name;
                         seat.classList.remove('fixed');
+                        seat.classList.remove('designated');
                         seat.style.border = "";
                         seat.style.background = "";
                     } else if (forced && isResultRevealed) {
@@ -1046,16 +1081,26 @@
                 const coord = `${r}-${c}`;
                 const s = currentLayout.find(item => item.row == r && item.col == c);
                 const forced = settings.forcedSeats && settings.forcedSeats.find(f => f.row == r && f.col == c);
+                const designated = settings.designatedSeats && settings.designatedSeats.find(d => d.row == r && d.col == c);
 
                 let seatText = "";
-                if (forced && forcedSeatMode) {
+                if (designated) {
+                    // 📌 지정석: 항상 파란색으로 학생 이름 표시
+                    seatText = designated.name;
+                    seat.classList.add('designated');
+                    if (designatedSeatMode) {
+                        seat.style.border = "3px solid #1d4ed8";
+                        seat.style.background = "#bfdbfe";
+                    }
+                } else if (forced && forcedSeatMode) {
                     seatText = forced.name;
                     seat.classList.add('fixed');
                     seat.style.border = "3px solid #3b82f6";
                     seat.style.background = "#eff6ff";
-                } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode))) {
+                } else if (s && (isResultRevealed || (!forcedSeatMode && !disabledSeatMode && !settingsMode && !designatedSeatMode))) {
                     seatText = s.name;
                     seat.classList.remove('fixed');
+                    seat.classList.remove('designated');
                     seat.style.border = "";
                     seat.style.background = "";
                 } else if (forced && isResultRevealed) {
@@ -1072,7 +1117,7 @@
                     seat.classList.add('selected');
                     seat.style.border = "3px solid #8b5cf6";
                     seat.style.boxShadow = "0 0 15px rgba(139, 92, 246, 0.5)";
-                } else if (seatText && !forcedSeatMode) {
+                } else if (seatText && !forcedSeatMode && !designated) {
                     seat.classList.remove('selected');
                     if (!seat.classList.contains('fixed')) {
                         seat.style.border = "";
@@ -1282,7 +1327,17 @@
                     forced_seats: getForcedSeatsData()
                 })
             }).then(r => r.json()).then(data => {
-                shuffleResult = data.layout;
+                let layout = data.layout || [];
+                // 📌 지정석 학생을 섞기 결과에서 제거하고, 지정된 위치에 고정 배치
+                if (settings.designatedSeats && settings.designatedSeats.length > 0) {
+                    const designatedNames = settings.designatedSeats.map(d => d.name);
+                    layout = layout.filter(s => !designatedNames.includes(s.name));
+                    settings.designatedSeats.forEach(d => {
+                        const studentDetails = studentList.find(s => s.name === d.name) || { name: d.name, gender: '', eyestright: '' };
+                        layout.push({ name: d.name, row: d.row, col: d.col, gender: studentDetails.gender, eyestright: studentDetails.eyestright });
+                    });
+                }
+                shuffleResult = layout;
             });
 
             // 4. 영상 종료 후 좌석 원복 및 섞기 애니메이션 실행
@@ -1384,6 +1439,8 @@
                 else settings.disabledSeats.push(coord);
                 updateDisabledSeatCount();
                 drawSeats();
+            } else if (designatedSeatMode) {
+                openDesignatedPickerForSeat(r, c);
             } else if (forcedSeatMode) {
                 openStudentPickerForSeat(r, c);
             } else if (swapMode) {
@@ -1515,6 +1572,63 @@
         // 🚩 알리아스 (UI 바에서 호출용)
         function closeForcedMode() { exitForcedSeatMode(); }
         function closeDisabledMode() { exitDisabledSeatMode(); }
+
+        // 📌 지정석 기능
+        function enterDesignatedSeatMode() {
+            designatedSeatMode = true;
+            forcedSeatMode = false;
+            disabledSeatMode = false;
+            document.body.classList.remove('forced-assignment-active');
+            document.getElementById('designatedModeBar').style.display = 'block';
+            document.getElementById('forcedModeBar').style.display = 'none';
+            document.getElementById('disabledModeBar').style.display = 'none';
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+            updateDesignatedSeatStatus();
+            drawSeats();
+        }
+        function exitDesignatedSeatMode() {
+            designatedSeatMode = false;
+            document.getElementById('designatedModeBar').style.display = 'none';
+            isResultRevealed = true;
+            drawSeats();
+        }
+        function clearDesignatedSeats() {
+            settings.designatedSeats = [];
+            updateDesignatedSeatStatus();
+            drawSeats();
+        }
+        function updateDesignatedSeatStatus() {
+            const el = document.getElementById('designatedSeatsStatus');
+            const count = (settings.designatedSeats || []).length;
+            if (el) el.textContent = count > 0 ? `${count}명 지정됨` : '지정된 학생 없음';
+        }
+        let designatedPickingSeat = null;
+        function openDesignatedPickerForSeat(r, c) {
+            designatedPickingSeat = { r, c };
+            const m = document.getElementById('studentPickerModal');
+            m.style.display = 'block';
+            const syncInfo = getSyncSchoolInfo();
+            fetch(`/api/students?school_name=${syncInfo.school_name}&grade=${syncInfo.grade}&class_num=${syncInfo.class_num}&mode=list`)
+                .then(res => res.json()).then(data => {
+                    const b = document.getElementById('pickerStudentList');
+                    let listHtml = `<div class="picker-item" onclick="pickDesignatedStudentForSeat(null)" style="padding: 10px 16px; border-bottom: 2px solid #f1f5f9; cursor: pointer; color: #ef4444; font-weight: bold;">✕ 지정 해제</div>`;
+                    listHtml += data.map(s => `<div class="picker-item" onclick="pickDesignatedStudentForSeat('${s.name}')" style="padding: 10px 16px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.2s;">${s.name} (${s.gender})</div>`).join('');
+                    b.innerHTML = listHtml;
+                });
+        }
+        function pickDesignatedStudentForSeat(name) {
+            if (!settings.designatedSeats) settings.designatedSeats = [];
+            // 해당 자리의 기존 지정 제거
+            settings.designatedSeats = settings.designatedSeats.filter(d => d.row !== designatedPickingSeat.r || d.col !== designatedPickingSeat.c);
+            if (name) {
+                // 해당 학생의 다른 자리 지정 제거
+                settings.designatedSeats = settings.designatedSeats.filter(d => d.name !== name);
+                settings.designatedSeats.push({ name, row: designatedPickingSeat.r, col: designatedPickingSeat.c });
+            }
+            closeModal('studentPickerModal');
+            updateDesignatedSeatStatus();
+            drawSeats();
+        }
 
         function enterDisabledSeatMode() {
             closeModal('settingsModal');
