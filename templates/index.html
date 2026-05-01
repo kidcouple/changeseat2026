@@ -1398,17 +1398,13 @@
                     const c = parseInt(seat.dataset.col);
 
                     const designated = (settings.designatedSeats || []).find(d => d.row == r && d.col == c);
-                    const forced = (settings.forcedSeats || []).find(f => f.row == r && f.col == c);
 
-                    if (designated || forced) {
-                        const fixedStudent = designated || forced;
-                        seat.textContent = fixedStudent.name;
+                    if (designated) {
+                        seat.textContent = designated.name;
                         seat.style.color = "#1e293b";
-                        if (designated) {
-                            seat.style.background = "#dbeafe";
-                            seat.style.borderColor = "#3b82f6";
-                            seat.style.boxShadow = "0 0 8px rgba(59, 130, 246, 0.4)";
-                        }
+                        seat.style.background = "#dbeafe";
+                        seat.style.borderColor = "#3b82f6";
+                        seat.style.boxShadow = "0 0 8px rgba(59, 130, 246, 0.4)";
                         return;
                     }
 
