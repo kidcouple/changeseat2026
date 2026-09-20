@@ -924,10 +924,17 @@ def ensure_schema():
             ('prevent_same_pair', bool_sql),
         ],
         'seat_history': [
+            ('school_name', 'VARCHAR(100)'),
+            ('grade', 'INTEGER'),
+            ('class_num', 'INTEGER'),
             ('layout_data', 'TEXT'),
             ('created_at', time_sql),
         ],
         'pair_history': [
+            ('school_name', 'VARCHAR(100)'),
+            ('grade', 'INTEGER'),
+            ('class_num', 'INTEGER'),
+            ('name', 'VARCHAR(100)'),
             ('created_at', time_sql),
             ('pair_name', 'VARCHAR(100)'),
         ],
