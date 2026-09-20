@@ -12,6 +12,24 @@ Render의 `seat-arrangement` 서비스에서 다음 환경 변수를 등록한�
 연결 문자열과 DB 비밀번호는 저장소나 소스 코드에 기록하지 않는다. 환경 변수를
 저장한 뒤 Render를 다시 배포하면 앱이 Supabase에 연결된다.
 
+## 1-1. 무료 플랜 자동 정지 방지
+
+무료 Supabase는 약 7일 동안 DB 사용이 거의 없으면 일시 정지된다. 유료(Pro)로
+올리지 않고 막을 때는 아래 두 가지를 같이 쓴다.
+
+1. Render `DATABASE_URL`에 Supabase Session pooler 연결 문자열을 넣는다.
+2. GitHub Actions `keep-alive.yml`이 하루 두 번(`/api/health`) 앱과 DB를 깨운다.
+
+`/api/health`는 `SELECT 1`을 실행하므로, 앱이 Supabase에 연결된 뒤에는 이
+요청이 프로젝트 활동으로 잡힌다. Render 무료 웹도 같이 깨어 있는다.
+
+선택적으로 앱 저장소 Actions secrets에 `SUPABASE_DB_URL`을 넣으면 워크플로가
+PostgreSQL에 직접 `SELECT 1`을 한 번 더 보낸다. `APP_HEALTH_URL`은 기본값
+`https://seat-arrangement-ri4p.onrender.com/api/health`를 바꾼다.
+
+`DATABASE_URL`을 처음 연결한 뒤에는 빈 DB로 뜨므로 명단·이력을 한 번 다시
+등록해야 한다.
+
 학생 이름이 포함된 `업데이트해야함` 폴더는 공개 소스 저장소에 올리지 않는다.
 Supabase 연결을 마친 뒤 로컬 PowerShell에서 복구 자료를 1회만 등록한다.
 

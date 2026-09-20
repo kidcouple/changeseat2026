@@ -113,6 +113,16 @@ class SeatHistory(db.Model):
 def index():
     return render_template('index.html')
 
+@app.route('/api/health')
+def health():
+    try:
+        from sqlalchemy import text
+        db.session.execute(text('SELECT 1'))
+        return jsonify({'ok': True, 'db': True})
+    except Exception:
+        db.session.rollback()
+        return jsonify({'ok': False, 'db': False}), 503
+
 @app.route('/api/students', methods=['GET'])
 def get_students():
     school_name = request.args.get('school_name')
