@@ -771,7 +771,7 @@
     <script>
         // --- 1. 전역 상태 및 초기화 ---
         let currentLayout = [];
-        let schoolInfo = { school_name: "위례한빛중학교", grade: "1", class_num: "3", motto: "" };
+        let schoolInfo = { school_name: "위례중앙중학교", grade: "1", class_num: "6", motto: "" };
         let settings = {
             motto: "", countdownText: "두구두구...",
             numColumns: 6, useAisleGap: true,
@@ -878,7 +878,7 @@
             const colors = ['#FF4D4D', '#FFD700', '#4CAF50', '#2196F3', '#9C27B0', '#FF851B'];
             
             // 학교명과 학급명이 비어있어도 보여줄 수 있도록 기본값 보정
-            const schoolStr = schoolInfo.school_name || "위례한빛중학교";
+            const schoolStr = schoolInfo.school_name || "위례중앙중학교";
 
             let classStr = "";
             if (schoolInfo.grade && schoolInfo.class_num) {
@@ -888,7 +888,7 @@
             } else if (schoolInfo.class_num) {
                 classStr = `${schoolInfo.class_num}반`;
             } else {
-                classStr = "1학년 3반"; // 기본 학급명
+                classStr = "1학년 6반"; // 기본 학급명
             }
 
             // 풍선 그리기 보조 함수 (약간 더 작고 조밀하게 조정)
@@ -1319,13 +1319,9 @@
 
             // 3. 결과 미리 통신 (백엔드 계산 시간 대비)
             const syncInfo = getSyncSchoolInfo();
-            const allForced = [
-                ...(settings.forcedSeats || []),
-                ...(settings.designatedSeats || [])
-            ];
-            const dedupedForced = Object.values(
-                allForced.reduce((acc, f) => { acc[f.name] = f; return acc; }, {})
-            );
+            const designatedSeats = settings.designatedSeats || [];
+            const forcedSeats = settings.forcedSeats || [];
+            shuffleResult = currentLayout;
             fetch('/api/shuffle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1333,10 +1329,18 @@
                     school: syncInfo.school_name, grade: syncInfo.grade, class_num: syncInfo.class_num,
                     num_columns: settings.numColumns,
                     disabled_seats: settings.disabledSeats,
-                    forced_seats: dedupedForced
+                    designated_seats: designatedSeats,
+                    forced_seats: forcedSeats
                 })
-            }).then(r => r.json()).then(data => {
+            }).then(async r => {
+                const data = await r.json();
+                if (!r.ok) throw new Error(data.error || '자리배치 요청에 실패했습니다.');
+                return data;
+            }).then(data => {
                 shuffleResult = data.layout || [];
+            }).catch(error => {
+                console.error('Shuffle error:', error);
+                alert(error.message);
             });
 
             // 4. 영상 종료 후 좌석 원복 및 섞기 애니메이션 실행

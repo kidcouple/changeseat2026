@@ -48,6 +48,7 @@ instance/
 .flaskenv
 .env.local
 .env.*.local
+.claude/settings.local.json
 
 # Backup & Temp
 *.bak
@@ -56,6 +57,10 @@ temp/
 tests/test_results/
 brain/
 /tmp/
+
+# 학생 개인정보가 포함된 로컬 복구 원본
+업데이트해야함/
+test_real_class.py
 
 # Static files (if using collectstatic)
 staticfiles/

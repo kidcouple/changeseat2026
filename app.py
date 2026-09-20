@@ -1,18 +1,54 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, session
 from flask_sqlalchemy import SQLAlchemy
+import ast
+import json
 import os
-import pandas as pd
 import math
 import random
-from datetime import datetime
+from datetime import datetime, timezone
+
+try:
+    import pandas as pd
+except ImportError:  # 복구 스크립트 실행 시 엑셀 의존성은 선택 사항
+    pd = None
 
 app = Flask(__name__, static_folder='static')
-# 60KB 용량의 원본 데이터베이스 파일을 명시적으로 지정
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'seats.db')
+database_url = os.environ.get('DATABASE_URL', '').strip()
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
+elif database_url.startswith('postgresql://'):
+    database_url = database_url.replace('postgresql://', 'postgresql+psycopg://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = (
+    database_url or 'sqlite:///' + os.path.join(basedir, 'seats.db')
+)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
 app.secret_key = os.urandom(24)
 db = SQLAlchemy(app)
+
+def utc_now():
+    """기존 시간대 없는 DB 열에 맞춘 경고 없는 UTC 현재 시각."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def parse_layout(raw):
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return raw
+    try:
+        data = json.loads(raw)
+        if isinstance(data, list):
+            return data
+    except (TypeError, json.JSONDecodeError):
+        pass
+    try:
+        data = ast.literal_eval(raw)
+        return data if isinstance(data, list) else []
+    except (ValueError, SyntaxError):
+        return []
+
 
 # 모델 정의
 class Student(db.Model):
@@ -41,7 +77,7 @@ class Setting(db.Model):
     prevent_same_pair = db.Column(db.Boolean, default=False)
     disabled_seats = db.Column(db.Text)  # JSON string
     forced_seats = db.Column(db.Text)    # JSON string
-    last_active_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_active_at = db.Column(db.DateTime, default=utc_now)
 
 class PairHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -50,7 +86,7 @@ class PairHistory(db.Model):
     class_num = db.Column(db.Integer)
     name = db.Column(db.String(100))
     pair_name = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 class SeatHistory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -58,7 +94,7 @@ class SeatHistory(db.Model):
     grade = db.Column(db.Integer)
     class_num = db.Column(db.Integer)
     layout_data = db.Column(db.Text) # JSON string
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=utc_now)
 
 @app.route('/')
 def index():
@@ -157,20 +193,36 @@ def bulk_add_students():
             vision = s.get('eyestright') or s.get('eyesight') or '정상'
             if str(vision) == '2' or '이상' in str(vision): vision = '이상'
             elif str(vision) == '1' or '정상' in str(vision): vision = '정상'
-            
-            student = Student(
-                school_name=school,
-                grade=int(grade),
-                class_num=int(class_num),
-                student_number=int(s.get('student_number') or 0),
-                name=str(s.get('name', '')).strip(),
-                gender=str(s.get('gender', '남')),
-                eyestright=str(vision),
-                is_transferred=bool(s.get('is_transferred', False))
-            )
-            if student.name:
+
+            student_number = int(s.get('student_number') or 0)
+            name = str(s.get('name', '')).strip()
+            if not name:
+                continue
+
+            identity = {
+                'school_name': school,
+                'grade': int(grade),
+                'class_num': int(class_num),
+            }
+            if student_number:
+                student = Student.query.filter_by(
+                    **identity, student_number=student_number
+                ).first()
+            else:
+                student = Student.query.filter_by(
+                    **identity, name=name
+                ).first()
+
+            if not student:
+                student = Student(**identity)
                 db.session.add(student)
-                count += 1
+
+            student.student_number = student_number
+            student.name = name
+            student.gender = str(s.get('gender', '남'))
+            student.eyestright = str(vision)
+            student.is_transferred = bool(s.get('is_transferred', False))
+            count += 1
         
         db.session.commit()
         print(f"Bulk added {count} students for {school} {grade}-{class_num}")
@@ -217,66 +269,109 @@ def handle_settings():
             "preventSameSeat": setting.prevent_same_seat,
             "preventSameSeatCount": setting.prevent_same_seat_count,
             "preventSamePair": bool(setting.prevent_same_pair) if setting.prevent_same_pair is not None else False,
-            "disabledSeats": eval(setting.disabled_seats) if setting.disabled_seats else [],
-            "forcedSeats": eval(setting.forced_seats) if setting.forced_seats else []
+            "disabledSeats": parse_layout(setting.disabled_seats),
+            "forcedSeats": parse_layout(setting.forced_seats)
         })
 
     else: # POST
-        data = request.json
+        data = request.get_json(silent=True) or {}
         if not setting:
             setting = Setting(school_name=school, grade=grade, class_num=class_num)
             db.session.add(setting)
         setting.motto = data.get('motto', "")
-        setting.num_columns = data.get('numColumns', 6)
+        setting.num_columns = max(1, safe_int(data.get('numColumns'), 6))
         setting.use_aisle_gap = data.get('useAisleGap', True)
         setting.consider_eyesight = data.get('considerEyesight', False)
         setting.separate_gender = data.get('separateGender', True)
         setting.prevent_same_seat = data.get('preventSameSeat', False)
-        setting.prevent_same_seat_count = data.get('preventSameSeatCount', 1)
+        setting.prevent_same_seat_count = max(
+            1, safe_int(data.get('preventSameSeatCount'), 1)
+        )
         setting.prevent_same_pair = data.get('preventSamePair', False)
-        setting.disabled_seats = str(data.get('disabledSeats', []))
-        setting.forced_seats = str(data.get('forcedSeats', []))
-        setting.last_active_at = datetime.utcnow()
+        setting.disabled_seats = json.dumps(
+            data.get('disabledSeats', []), ensure_ascii=False
+        )
+        setting.forced_seats = json.dumps(
+            data.get('forcedSeats', []), ensure_ascii=False
+        )
+        setting.last_active_at = utc_now()
         
         db.session.commit()
         return jsonify({"status": "success"})
 
 @app.route('/api/shuffle', methods=['POST'])
 def shuffle_students():
-    data = request.json
+    data = request.get_json(silent=True) or {}
     school = (data.get('school_name') or data.get('school') or data.get('school_id') or '').strip()
-    grade = int(data.get('grade', 0))
-    class_num = int(data.get('class_num', 0))
-    cols = int(data.get('num_columns', 6))
-    disabled_seats = data.get('disabled_seats', [])
-    forced_seats = data.get('forced_seats', [])
-    
-    # 🔍 [Debug] 요청 파라미터 확인
-    print(f"--- Shuffle Debug ---")
-    print(f"Request: school={school}, grade={grade}, class_num={class_num}, cols={cols}")
+    try:
+        grade = int(data.get('grade', 0))
+        class_num = int(data.get('class_num', 0))
+        cols = int(data.get('num_columns', 6))
+    except (TypeError, ValueError):
+        return jsonify({'error': '학년, 반, 열 수는 숫자여야 합니다.'}), 400
+    if not school or grade < 1 or class_num < 1 or cols < 1:
+        return jsonify({'error': '학교, 학년, 반, 열 수를 확인해 주세요.'}), 400
+
+    raw_disabled = data.get('disabled_seats', [])
+    raw_designated = data.get('designated_seats', [])
+    raw_forced = data.get('forced_seats', [])
+    disabled_seats = list(dict.fromkeys(raw_disabled)) if isinstance(raw_disabled, list) else []
+    designated_seats = raw_designated if isinstance(raw_designated, list) else []
+    forced_seats = raw_forced if isinstance(raw_forced, list) else []
     
     students = Student.query.filter_by(school_name=school, grade=grade, class_num=class_num, is_transferred=False).all()
-    print(f"Students found: {len(students)}")
 
     if not students:
         return jsonify({'layout': []})
 
     setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
     use_aisle_gap = setting.use_aisle_gap if setting else True
+    consider_eyesight = bool(setting.consider_eyesight) if setting else False
+    separate_gender = bool(setting.separate_gender) if setting else False
+    prevent_same_seat = bool(setting.prevent_same_seat) if setting else False
     prevent_same_pair = bool(setting.prevent_same_pair) if setting and setting.prevent_same_pair is not None else False
-    prevent_same_seat_count = setting.prevent_same_seat_count if setting else 1
+    prevent_same_seat_count = max(1, setting.prevent_same_seat_count if setting else 1)
 
-    # 이름 기준 중복 제거 (같은 학생이 두 번 등장하면 마지막 좌표 사용)
-    seen_names = {}
-    for f in forced_seats:
-        seen_names[f['name']] = f
-    forced_seats = list(seen_names.values())
+    rows_count = math.ceil((len(students) + len(disabled_seats)) / cols)
+    if rows_count < 5:
+        rows_count = 5
 
-    # 위치 기준 중복 제거 (같은 자리에 두 학생이 지정되면 마지막 학생 사용)
-    seen_pos = {}
-    for f in forced_seats:
-        seen_pos[(int(f['row']), int(f['col']))] = f
-    forced_seats = list(seen_pos.values())
+    # 삭제·전출된 학생, 범위 밖 좌석, 빈자리로 막힌 좌석의 오래된 지정값은 무시
+    active_names = {student.name for student in students}
+
+    def valid_fixed_entries(raw_items):
+        valid = []
+        for item in raw_items:
+            try:
+                row_i = int(item['row'])
+                col_i = int(item['col'])
+                name = item['name']
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (
+                name in active_names
+                and 1 <= row_i <= rows_count
+                and 1 <= col_i <= cols
+                and f"{row_i}-{col_i}" not in disabled_seats
+            ):
+                valid.append({'name': name, 'row': row_i, 'col': col_i})
+        return valid
+
+    designated_seats = valid_fixed_entries(designated_seats)
+    forced_seats = valid_fixed_entries(forced_seats)
+
+    # 우선순위: 지정석 > 강제지정. 이름·자리가 겹치면 지정석을 남긴다.
+    merged_fixed = []
+    taken_names = set()
+    taken_pos = set()
+    for item in designated_seats + forced_seats:
+        if item['name'] in taken_names or (item['row'], item['col']) in taken_pos:
+            continue
+        merged_fixed.append(item)
+        taken_names.add(item['name'])
+        taken_pos.add((item['row'], item['col']))
+    forced_seats = merged_fixed
+    locked_names = taken_names
 
     forced_names = [f['name'] for f in forced_seats]
     pool = [s for s in students if s.name not in forced_names]
@@ -284,73 +379,254 @@ def shuffle_students():
     # 분단(aisle gap) 모드 여부: cols가 짝수이고 use_aisle_gap=True이면 분단 모드
     is_bundan = use_aisle_gap and cols % 2 == 0
 
+    forced_layout = []
+    occupied = set()
+    for f in forced_seats:
+        row_i = int(f['row'])
+        col_i = int(f['col'])
+        forced_layout.append({'name': f['name'], 'row': row_i, 'col': col_i})
+        occupied.add((row_i, col_i))
+
+    available_positions = [
+        (row, col)
+        for row in range(1, rows_count + 1)
+        for col in range(1, cols + 1)
+        if (row, col) not in occupied and f"{row}-{col}" not in disabled_seats
+    ]
+
+    # 동일 자리 금지: 최근 N개 배치의 학생별 좌석을 로드
+    recent_seats = {}
+    if prevent_same_seat:
+        recent_histories = SeatHistory.query.filter_by(
+            school_name=school, grade=grade, class_num=class_num
+        ).order_by(SeatHistory.created_at.desc()).limit(prevent_same_seat_count).all()
+        for history in recent_histories:
+            history_layout = parse_layout(history.layout_data)
+            for seat in history_layout:
+                if seat.get('name'):
+                    recent_seats.setdefault(seat['name'], set()).add(
+                        (int(seat['row']), int(seat['col']))
+                    )
+
     # 동일짝 금지: 짝 이력 로드
     pair_history_map = {}
     if prevent_same_pair and is_bundan:
-        for s in pool:
+        for s in students:
             rows_ph = PairHistory.query.filter_by(
                 school_name=school, grade=grade, class_num=class_num, name=s.name
             ).order_by(PairHistory.created_at.desc()).limit(prevent_same_seat_count).all()
             pair_history_map[s.name] = [r.pair_name for r in rows_ph]
 
-    # 충돌 없는 배치 탐색 (최대 30회 재시도)
-    best_pool = pool[:]
-    best_conflicts = None
-    for attempt in range(30 if prevent_same_pair and is_bundan else 1):
-        if attempt > 0:
-            random.shuffle(pool)
-        conflicts = 0
-        if prevent_same_pair and is_bundan:
-            num_groups = cols // 2
-            idx = 0
-            # 임시 배치 순서로 짝 충돌 계산
-            temp = pool[:]
-            for r in range(1, 10):
-                for g in range(num_groups):
-                    col1 = g * 2 + 1
-                    col2 = g * 2 + 2
-                    if f"{r}-{col1}" in disabled_seats or f"{r}-{col2}" in disabled_seats:
-                        continue
-                    if idx + 1 < len(temp):
-                        n1 = temp[idx].name
-                        n2 = temp[idx + 1].name
-                        if n2 in pair_history_map.get(n1, []):
-                            conflicts += 1
-                        idx += 2
-                    elif idx < len(temp):
-                        idx += 1
-        if best_conflicts is None or conflicts < best_conflicts:
-            best_conflicts = conflicts
-            best_pool = pool[:]
-            if conflicts == 0:
+    eyesight_priority_pool = [
+        student for student in pool if student.eyestright == '이상'
+    ]
+    regular_pool = [
+        student for student in pool if student.eyestright != '이상'
+    ]
+    student_gender = {student.name: student.gender for student in students}
+    forced_gender_by_pos = {
+        (seat['row'], seat['col']): student_gender.get(seat['name'])
+        for seat in forced_layout
+    }
+    forced_name_by_pos = {
+        (seat['row'], seat['col']): seat['name']
+        for seat in forced_layout
+    }
+
+    def pair_partner_col(col):
+        return col + 1 if col % 2 == 1 else col - 1
+
+    def pick_eyesight_positions(count):
+        """교탁 앞자리를 시력 학생 수만큼 예약. 남여 구분 시에는 분단 짝에 한 명씩 먼저 배치."""
+        front_first = sorted(available_positions)
+        if count <= 0:
+            return []
+        if not (separate_gender and is_bundan):
+            return front_first[:count]
+
+        grouped = {}
+        for row, col in front_first:
+            grouped.setdefault((row, col if col % 2 == 1 else col - 1), []).append(
+                (row, col)
+            )
+        chosen = []
+        for seats in grouped.values():
+            if len(chosen) >= count:
                 break
-    pool = best_pool
-    random.shuffle(pool) if not (prevent_same_pair and is_bundan) else None
+            chosen.append(seats[0])
+        if len(chosen) < count:
+            chosen_set = set(chosen)
+            for seats in grouped.values():
+                for seat in seats:
+                    if seat not in chosen_set:
+                        chosen.append(seat)
+                        if len(chosen) >= count:
+                            return chosen
+        return chosen[:count]
 
-    rows_count = math.ceil((len(students) + len(disabled_seats)) / cols)
-    if rows_count < 5: rows_count = 5
+    def assign_by_priority(
+        students, positions, occupied_genders, occupied_names, all_valid_positions
+    ):
+        leftover_students = list(students)
+        random.shuffle(leftover_students)
+        seat_gender = dict(occupied_genders)
+        seat_name = dict(occupied_names)
+        assignments = []
 
-    layout = []
-    occupied = set()
-    for f in forced_seats:
-        row_i = int(f['row'])
-        col_i = int(f['col'])
-        layout.append({'name': f['name'], 'row': row_i, 'col': col_i})
-        occupied.add((row_i, col_i))
+        def wanted_gender(row, col):
+            partner_pos = (row, pair_partner_col(col))
+            partner = seat_gender.get(partner_pos)
+            if partner == '남':
+                return '여'
+            if partner == '여':
+                return '남'
+            if partner_pos not in all_valid_positions:
+                males = sum(1 for student in leftover_students if student.gender == '남')
+                females = sum(1 for student in leftover_students if student.gender == '여')
+                return '남' if males >= females else '여'
+            return '남' if col % 2 == 1 else '여'
 
-    student_idx = 0
-    for r in range(1, rows_count + 1):
-        for c in range(1, cols + 1):
-            if (r, c) in occupied or f"{r}-{c}" in disabled_seats:
-                continue
-            if student_idx < len(pool):
-                s = pool[student_idx]
-                layout.append({'name': s.name, 'row': r, 'col': c})
-                student_idx += 1
+        def penalty(student, row, col, wanted):
+            pair_pen = 0
+            if prevent_same_pair and is_bundan:
+                partner_name = seat_name.get((row, pair_partner_col(col)))
+                if partner_name and partner_name in pair_history_map.get(student.name, []):
+                    pair_pen = 1
+            eye_pen = 0
+            if consider_eyesight:
+                in_front = (row, col) in eyesight_position_set
+                is_eye = student.eyestright == '이상'
+                if is_eye != in_front:
+                    eye_pen = 1
+            seat_pen = 0
+            if prevent_same_seat and (row, col) in recent_seats.get(student.name, set()):
+                seat_pen = 1
+            gender_pen = 0
+            if separate_gender and wanted and student.gender != wanted:
+                gender_pen = 1
+            # 지정석/강제지정 다음 우선순위: 동일짝 > 시력 > 이전자리 > 남여
+            return (pair_pen, eye_pen, seat_pen, gender_pen)
+
+        for row, col in sorted(positions):
+            if not leftover_students:
+                break
+            wanted = wanted_gender(row, col) if separate_gender and is_bundan else None
+            student = min(
+                leftover_students,
+                key=lambda candidate: penalty(candidate, row, col, wanted),
+            )
+            leftover_students.remove(student)
+            assignments.append((student, (row, col)))
+            seat_gender[(row, col)] = student.gender
+            seat_name[(row, col)] = student.name
+        leftover_positions = [
+            position
+            for position in positions
+            if position not in {pos for _, pos in assignments}
+        ]
+        assignments.extend(zip(leftover_students, leftover_positions))
+        return assignments, seat_gender, seat_name
+
+    eyesight_positions = pick_eyesight_positions(len(eyesight_priority_pool))
+    eyesight_position_set = set(eyesight_positions)
+    regular_positions = [
+        position
+        for position in available_positions
+        if position not in eyesight_position_set
+    ]
+
+    def shuffled_candidate_assignments():
+        assignments, _, _ = assign_by_priority(
+            pool,
+            available_positions,
+            forced_gender_by_pos,
+            forced_name_by_pos,
+            set(available_positions) | set(forced_name_by_pos),
+        )
+        return assignments
+
+    has_constraints = (
+        prevent_same_seat
+        or prevent_same_pair
+        or consider_eyesight
+        or (is_bundan and separate_gender)
+    )
+    attempts = 300 if has_constraints else 1
+    best_layout = None
+    best_score = None
+    student_eyesight = {student.name: student.eyestright for student in students}
+    for _ in range(attempts):
+        candidate_assignments = shuffled_candidate_assignments()
+        candidate_layout = forced_layout + [
+            {'name': student.name, 'row': position[0], 'col': position[1]}
+            for student, position in candidate_assignments
+        ]
+
+        same_seat_conflicts = sum(
+            (seat['row'], seat['col']) in recent_seats.get(seat['name'], set())
+            for seat in candidate_layout
+            if seat['name'] not in locked_names
+        ) if prevent_same_seat else 0
+
+        eyesight_conflicts = 0
+        if consider_eyesight:
+            eyesight_conflicts = sum(
+                1
+                for seat in candidate_layout
+                if seat['name'] not in locked_names
+                and student_eyesight.get(seat['name']) == '이상'
+                and (seat['row'], seat['col']) not in eyesight_position_set
+            )
+
+        pair_conflicts = 0
+        same_gender_conflicts = 0
+        if is_bundan and (prevent_same_pair or separate_gender):
+            seat_map = {
+                (seat['row'], seat['col']): seat['name'] for seat in candidate_layout
+            }
+            for row in range(1, rows_count + 1):
+                for first_col in range(1, cols + 1, 2):
+                    first_name = seat_map.get((row, first_col))
+                    second_name = seat_map.get((row, first_col + 1))
+                    if not first_name or not second_name:
+                        continue
+                    both_locked = (
+                        first_name in locked_names and second_name in locked_names
+                    )
+                    if both_locked:
+                        continue
+                    if (
+                        prevent_same_pair
+                        and second_name in pair_history_map.get(first_name, [])
+                    ):
+                        pair_conflicts += 1
+                    if (
+                        separate_gender
+                        and student_gender.get(first_name)
+                        and student_gender.get(first_name)
+                        == student_gender.get(second_name)
+                    ):
+                        same_gender_conflicts += 1
+
+        # 지정석/강제지정은 이미 고정. 나머지 점수 우선순위:
+        # 동일짝 > 시력 > 이전자리 > 남여
+        score = (
+            pair_conflicts,
+            eyesight_conflicts,
+            same_seat_conflicts,
+            same_gender_conflicts,
+        )
+        if best_score is None or score < best_score:
+            best_score = score
+            best_layout = candidate_layout
+            if score == (0, 0, 0, 0):
+                break
+
+    layout = best_layout or forced_layout
 
     # 🚩 배치 실행 시 해당 학급을 '최근 활성화 학급'으로 갱신
     if setting:
-        setting.last_active_at = datetime.utcnow()
+        setting.last_active_at = utc_now()
 
     db.session.commit()
 
@@ -358,6 +634,8 @@ def shuffle_students():
 
 @app.route('/api/students/upload', methods=['POST'])
 def upload_students():
+    if pd is None:
+        return jsonify({'error': '엑셀 처리 모듈이 설치되지 않았습니다.'}), 503
     if 'file' not in request.files:
         return jsonify({'error': 'No file'}), 400
     
@@ -439,7 +717,7 @@ def get_history():
     return jsonify([{
         'id': h.id,
         'created_at': h.created_at.isoformat(),
-        'layout_data': eval(h.layout_data) if h.layout_data else []
+        'layout_data': parse_layout(h.layout_data)
     } for h in history])
 
 @app.route('/api/seat_history/<int:id>', methods=['DELETE'])
@@ -504,10 +782,10 @@ def get_latest_state():
             "preventSameSeat": setting.prevent_same_seat if setting else False,
             "preventSameSeatCount": setting.prevent_same_seat_count if setting else 1,
             "preventSamePair": bool(setting.prevent_same_pair) if setting and setting.prevent_same_pair is not None else False,
-            "disabledSeats": eval(setting.disabled_seats) if setting and setting.disabled_seats else [],
-            "forcedSeats": eval(setting.forced_seats) if setting and setting.forced_seats else []
+            "disabledSeats": parse_layout(setting.disabled_seats) if setting else [],
+            "forcedSeats": parse_layout(setting.forced_seats) if setting else []
         },
-        "layout": eval(history.layout_data) if history and history.layout_data else []
+        "layout": parse_layout(history.layout_data) if history else []
     })
 
 @app.route('/api/save_layout', methods=['POST'])
@@ -518,7 +796,7 @@ def save_layout():
     class_num = int(data.get('class_num', 0))
     layout = data.get('layout', [])
 
-    now = datetime.utcnow()
+    now = utc_now()
     history = SeatHistory(
         school_name=school,
         grade=grade,
@@ -593,7 +871,7 @@ with app.app_context():
     # 🚩 기존 데이터 소급 적용 (오늘 데이터 보존을 위해 현재 시간으로 초기화)
     try:
         from sqlalchemy import text
-        db.session.execute(text('UPDATE setting SET last_active_at = :now WHERE last_active_at IS NULL'), {'now': datetime.utcnow()})
+        db.session.execute(text('UPDATE setting SET last_active_at = :now WHERE last_active_at IS NULL'), {'now': utc_now()})
         db.session.commit()
     except:
         db.session.rollback()

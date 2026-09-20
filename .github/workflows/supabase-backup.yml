@@ -1,0 +1,93 @@
+name: Supabase private backup
+
+on:
+  schedule:
+    - cron: "0 18 * * *" # 매일 한국 시간 03:00
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout application
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Dump and encrypt database
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_ENCRYPTION_PASSWORD: ${{ secrets.BACKUP_ENCRYPTION_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL"
+          test -n "$BACKUP_ENCRYPTION_PASSWORD"
+          stamp="$(TZ=Asia/Seoul date +'%Y-%m-%d_%H%M%S')"
+          dump_file="changeseat_${stamp}.sql"
+
+          supabase db dump \
+            --db-url "$SUPABASE_DB_URL" \
+            --file "$dump_file"
+
+          test -s "$dump_file"
+          gzip -9 "$dump_file"
+          gzip -t "${dump_file}.gz"
+          openssl enc -aes-256-cbc -pbkdf2 -salt \
+            -in "${dump_file}.gz" \
+            -out "${dump_file}.gz.enc" \
+            -pass env:BACKUP_ENCRYPTION_PASSWORD
+          rm "${dump_file}.gz"
+          echo "BACKUP_FILE=${dump_file}.gz.enc" >> "$GITHUB_ENV"
+
+      - name: Verify backup repository is private
+        env:
+          BACKUP_REPOSITORY: ${{ secrets.BACKUP_REPOSITORY }}
+          BACKUP_REPO_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$BACKUP_REPOSITORY"
+          test -n "$BACKUP_REPO_TOKEN"
+          visibility="$(
+            curl -fsSL \
+              -H "Authorization: Bearer $BACKUP_REPO_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$BACKUP_REPOSITORY" |
+              jq -r '.visibility'
+          )"
+          test "$visibility" = "private"
+
+      - name: Checkout private backup repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.BACKUP_REPOSITORY }}
+          token: ${{ secrets.BACKUP_REPO_TOKEN }}
+          path: private-backup
+
+      - name: Store daily and monthly copies
+        working-directory: private-backup
+        run: |
+          set -euo pipefail
+          mkdir -p backups/daily backups/monthly
+          cp "../${BACKUP_FILE}" "backups/daily/${BACKUP_FILE}"
+          sha256sum "backups/daily/${BACKUP_FILE}" \
+            > "backups/daily/${BACKUP_FILE}.sha256"
+
+          if [ "$(TZ=Asia/Seoul date +%d)" = "01" ]; then
+            cp "backups/daily/${BACKUP_FILE}" "backups/monthly/${BACKUP_FILE}"
+            cp "backups/daily/${BACKUP_FILE}.sha256" \
+              "backups/monthly/${BACKUP_FILE}.sha256"
+          fi
+
+          find backups/daily -type f -mtime +30 -delete
+          git config user.name "changeseat-backup-bot"
+          git config user.email "changeseat-backup-bot@users.noreply.github.com"
+          git add backups
+          git commit -m "backup: ${BACKUP_FILE}"
+          git push
