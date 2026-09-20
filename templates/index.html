@@ -1916,7 +1916,7 @@
                             <tbody>
                                 ${data.map(h => `
                                     <tr>
-                                        <td>${new Date(h.created_at).toLocaleString()}</td>
+                                        <td>${new Date(h.created_at).toLocaleDateString('ko-KR')}</td>
                                         <td>
                                             <button class="btn" style="padding:4px 8px; font-size:12px;" onclick='restoreLayoutFromData(${JSON.stringify(h.layout_data)})'>복원</button>
                                         </td>

@@ -52,12 +52,13 @@ def import_students():
                 grade=GRADE,
                 class_num=CLASS_NUM,
                 student_number=item["number"],
-                name=item["name"],
-                gender=item["gender"],
-                eyestright=item.get("eyestright") or item.get("eyesight") or "정상",
                 is_transferred=False,
             )
             db.session.add(student)
+        student.name = item["name"]
+        student.gender = item["gender"]
+        student.eyestright = item.get("eyestright") or item.get("eyesight") or student.eyestright or "정상"
+        student.is_transferred = False
         imported += 1
 
     return imported
@@ -104,15 +105,28 @@ def transform_layout(source):
     ]
 
 
-def import_layouts():
+def import_layouts(active_names=None):
     paths = sorted(glob.glob(os.path.join(DATA_DIR, "1-6반 자리배치도(*).json")))
     imported = 0
+    active_names = set(active_names or [])
+    if not active_names:
+        active_names = {
+            student.name
+            for student in Student.query.filter_by(
+                school_name=SCHOOL_NAME,
+                grade=GRADE,
+                class_num=CLASS_NUM,
+                is_transferred=False,
+            ).all()
+            if student.name
+        }
 
     for path in paths:
         source = load_json(path)
-        end_date = source["period"]["end"]
-        created_at = datetime.fromisoformat(f"{end_date}T12:00:00")
+        start_date = source["period"]["start"]
+        created_at = datetime.fromisoformat(f"{start_date}T12:00:00")
         layout = transform_layout(source)
+        layout = [seat for seat in layout if seat.get("name") in active_names]
 
         history = SeatHistory.query.filter_by(
             school_name=SCHOOL_NAME,

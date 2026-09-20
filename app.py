@@ -32,6 +32,19 @@ def utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def parse_created_at(raw):
+    if not raw:
+        return None
+    try:
+        text = str(raw).strip().replace('Z', '')
+        if len(text) == 10:
+            text += 'T12:00:00'
+        value = datetime.fromisoformat(text)
+        return value.replace(tzinfo=None) if value.tzinfo else value
+    except ValueError:
+        return None
+
+
 def parse_layout(raw):
     if not raw:
         return []
@@ -701,18 +714,33 @@ def update_student(id):
         db.session.commit()
         return jsonify({'status': 'success'})
 
-@app.route('/api/seat_history', methods=['GET'])
+@app.route('/api/seat_history', methods=['GET', 'DELETE'])
 def get_history():
-    school = (request.args.get('school_id') or '').strip()
+    school = (request.args.get('school_id') or request.args.get('school') or '').strip()
     grade = request.args.get('grade')
     class_num = request.args.get('class_num')
-    
+
     query = SeatHistory.query.filter_by(school_name=school)
+    pair_query = PairHistory.query.filter_by(school_name=school)
     if grade:
         query = query.filter_by(grade=int(grade))
+        pair_query = pair_query.filter_by(grade=int(grade))
     if class_num:
         query = query.filter_by(class_num=int(class_num))
-        
+        pair_query = pair_query.filter_by(class_num=int(class_num))
+
+    if request.method == 'DELETE':
+        if not school or not grade or not class_num:
+            return jsonify({'error': '학교, 학년, 반을 지정해 주세요.'}), 400
+        deleted_pairs = pair_query.delete(synchronize_session=False)
+        deleted_histories = query.delete(synchronize_session=False)
+        db.session.commit()
+        return jsonify({
+            'status': 'success',
+            'deleted_histories': deleted_histories,
+            'deleted_pairs': deleted_pairs,
+        })
+
     history = query.order_by(SeatHistory.created_at.desc()).limit(10).all()
     return jsonify([{
         'id': h.id,
@@ -724,6 +752,12 @@ def get_history():
 def delete_history(id):
     history = SeatHistory.query.get_or_404(id)
     try:
+        PairHistory.query.filter_by(
+            school_name=history.school_name,
+            grade=history.grade,
+            class_num=history.class_num,
+            created_at=history.created_at,
+        ).delete(synchronize_session=False)
         db.session.delete(history)
         db.session.commit()
         return jsonify({'status': 'success'})
@@ -795,15 +829,30 @@ def save_layout():
     grade = int(data.get('grade', 0))
     class_num = int(data.get('class_num', 0))
     layout = data.get('layout', [])
+    created_at = parse_created_at(data.get('created_at')) or utc_now()
 
-    now = utc_now()
-    history = SeatHistory(
+    history = SeatHistory.query.filter_by(
         school_name=school,
         grade=grade,
         class_num=class_num,
-        layout_data=str(layout)
-    )
-    db.session.add(history)
+        created_at=created_at,
+    ).first()
+    if not history:
+        history = SeatHistory(
+            school_name=school,
+            grade=grade,
+            class_num=class_num,
+            created_at=created_at,
+        )
+        db.session.add(history)
+    history.layout_data = json.dumps(layout, ensure_ascii=False)
+
+    PairHistory.query.filter_by(
+        school_name=school,
+        grade=grade,
+        class_num=class_num,
+        created_at=created_at,
+    ).delete(synchronize_session=False)
 
     # 분단 모드이면 짝 이력 저장
     setting = Setting.query.filter_by(school_name=school, grade=grade, class_num=class_num).first()
@@ -820,12 +869,12 @@ def save_layout():
                     n1 = seat_map.get((r, col1))
                     n2 = seat_map.get((r, col2))
                     if n1 and n2:
-                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=now))
-                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n2, pair_name=n1, created_at=now))
+                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=created_at))
+                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n2, pair_name=n1, created_at=created_at))
 
     # 🚩 수동 저장 시에도 해당 학급을 '최근 활성화 학급'으로 갱신
     if setting:
-        setting.last_active_at = now
+        setting.last_active_at = utc_now()
 
     db.session.commit()
     return jsonify({"status": "success"})
