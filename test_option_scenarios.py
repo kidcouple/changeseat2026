@@ -296,11 +296,13 @@ class ScenarioRunner:
                     f"({seat['row']},{seat['col']})에 앉음"
                 )
 
-    def assert_gender(self, layout, forced=None):
+    def assert_gender(self, layout, forced=None, skip_eyesight_pairs=False):
         forced_names = {item["name"] for item in (forced or [])}
         conflicts = []
         for first, second in pairs_of(layout):
             if first in forced_names and second in forced_names:
+                continue
+            if skip_eyesight_pairs and is_eyesight(first) and is_eyesight(second):
                 continue
             if gender_of(first) == gender_of(second):
                 conflicts.append(f"{first}-{second}")
@@ -415,8 +417,8 @@ def main():
                 random.seed(75000 + trial * 31)
                 layout = runner.shuffle(forced=forced, designated=designated)
                 runner.assert_forced(layout, locked)
-                runner.assert_eyesight(layout, locked, spread_pairs=True)
-                runner.assert_gender(layout, locked)
+                runner.assert_eyesight(layout, locked)
+                runner.assert_gender(layout, locked, skip_eyesight_pairs=True)
                 runner.assert_same_seat(layout, recent_seats, locked)
                 runner.assert_same_pair(layout, recent_pairs, locked)
                 by_name = {seat["name"]: seat for seat in layout}

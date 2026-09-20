@@ -422,12 +422,19 @@ def shuffle_students():
                     )
 
     # 동일짝 금지: 짝 이력 로드
+    # 시력 이상은 앞자리 배치가 막히지 않도록 최근 2회(직전 짝 위주)만 본다.
+    EYESIGHT_PAIR_LIMIT = 2
     pair_history_map = {}
     if prevent_same_pair and is_bundan:
         for s in students:
+            pair_limit = (
+                min(EYESIGHT_PAIR_LIMIT, prevent_same_seat_count)
+                if s.eyestright == '이상'
+                else prevent_same_seat_count
+            )
             rows_ph = PairHistory.query.filter_by(
                 school_name=school, grade=grade, class_num=class_num, name=s.name
-            ).order_by(PairHistory.created_at.desc()).limit(prevent_same_seat_count).all()
+            ).order_by(PairHistory.created_at.desc()).limit(pair_limit).all()
             pair_history_map[s.name] = [r.pair_name for r in rows_ph]
 
     eyesight_priority_pool = [
@@ -450,32 +457,10 @@ def shuffle_students():
         return col + 1 if col % 2 == 1 else col - 1
 
     def pick_eyesight_positions(count):
-        """교탁 앞자리를 시력 학생 수만큼 예약. 남여 구분 시에는 분단 짝에 한 명씩 먼저 배치."""
-        front_first = sorted(available_positions)
+        """교탁 바로 앞자리부터 시력 학생 수만큼 예약. 시력은 남여 구분보다 우선한다."""
         if count <= 0:
             return []
-        if not (separate_gender and is_bundan):
-            return front_first[:count]
-
-        grouped = {}
-        for row, col in front_first:
-            grouped.setdefault((row, col if col % 2 == 1 else col - 1), []).append(
-                (row, col)
-            )
-        chosen = []
-        for seats in grouped.values():
-            if len(chosen) >= count:
-                break
-            chosen.append(seats[0])
-        if len(chosen) < count:
-            chosen_set = set(chosen)
-            for seats in grouped.values():
-                for seat in seats:
-                    if seat not in chosen_set:
-                        chosen.append(seat)
-                        if len(chosen) >= count:
-                            return chosen
-        return chosen[:count]
+        return sorted(available_positions)[:count]
 
     def assign_by_priority(
         students, positions, occupied_genders, occupied_names, all_valid_positions
@@ -549,13 +534,27 @@ def shuffle_students():
     ]
 
     def shuffled_candidate_assignments():
-        assignments, _, _ = assign_by_priority(
-            pool,
-            available_positions,
-            forced_gender_by_pos,
-            forced_name_by_pos,
-            set(available_positions) | set(forced_name_by_pos),
+        occupied_genders = dict(forced_gender_by_pos)
+        occupied_names = dict(forced_name_by_pos)
+        all_valid = set(available_positions) | set(forced_name_by_pos)
+        assignments = []
+        if consider_eyesight and eyesight_priority_pool and eyesight_positions:
+            eye_assignments, occupied_genders, occupied_names = assign_by_priority(
+                eyesight_priority_pool,
+                eyesight_positions,
+                occupied_genders,
+                occupied_names,
+                all_valid,
+            )
+            assignments.extend(eye_assignments)
+        rest_assignments, _, _ = assign_by_priority(
+            regular_pool if consider_eyesight else pool,
+            regular_positions if consider_eyesight else available_positions,
+            occupied_genders,
+            occupied_names,
+            all_valid,
         )
+        assignments.extend(rest_assignments)
         return assignments
 
     has_constraints = (
