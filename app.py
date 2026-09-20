@@ -891,7 +891,7 @@ def save_layout():
                     n1 = seat_map.get((r, col1))
                     n2 = seat_map.get((r, col2))
                     if n1 and n2:
-                                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=created_at))
+                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=created_at))
                         db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n2, pair_name=n1, created_at=created_at))
 
     # 🚩 수동 저장 시에도 해당 학급을 '최근 활성화 학급'으로 갱신
