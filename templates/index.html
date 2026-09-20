@@ -816,6 +816,7 @@
         async function loadLatestState() {
             try {
                 const r = await fetch('/api/latest_state');
+                if (!r.ok) return false;
                 const data = await r.json();
                 if (data.found) {
                     console.log("Latest state found on server:", data);

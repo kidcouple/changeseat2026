@@ -118,10 +118,17 @@ def health():
     try:
         from sqlalchemy import text
         db.session.execute(text('SELECT 1'))
-        return jsonify({'ok': True, 'db': True})
+        backend = db.engine.dialect.name
+        persistent = backend not in ('sqlite',)
+        return jsonify({
+            'ok': True,
+            'db': True,
+            'backend': backend,
+            'persistent': persistent,
+        })
     except Exception:
         db.session.rollback()
-        return jsonify({'ok': False, 'db': False}), 503
+        return jsonify({'ok': False, 'db': False, 'backend': None, 'persistent': False}), 503
 
 @app.route('/api/students', methods=['GET'])
 def get_students():
@@ -750,12 +757,16 @@ def get_history():
             'deleted_pairs': deleted_pairs,
         })
 
-    history = query.order_by(SeatHistory.created_at.desc()).limit(10).all()
-    return jsonify([{
-        'id': h.id,
-        'created_at': h.created_at.isoformat(),
-        'layout_data': parse_layout(h.layout_data)
-    } for h in history])
+    try:
+        history = query.order_by(SeatHistory.created_at.desc()).limit(10).all()
+        return jsonify([{
+            'id': h.id,
+            'created_at': naive_dt(h.created_at).isoformat(),
+            'layout_data': parse_layout(h.layout_data)
+        } for h in history])
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/seat_history/<int:id>', methods=['DELETE'])
 def delete_history(id):
@@ -774,25 +785,27 @@ def delete_history(id):
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+def naive_dt(value):
+    if not value:
+        return datetime.min
+    return value.replace(tzinfo=None) if getattr(value, 'tzinfo', None) else value
+
+
 @app.route('/api/latest_state', methods=['GET'])
 def get_latest_state():
-    # 1. 가장 최근에 배치(Shuffle/Save)된 기록 찾기
-    latest_history = SeatHistory.query.order_by(SeatHistory.created_at.desc()).first()
-    
-    # 2. 가장 최근에 설정이 변경된 학급 찾기
-    latest_setting = Setting.query.order_by(Setting.last_active_at.desc()).first()
-    
+    try:
+        latest_history = SeatHistory.query.order_by(SeatHistory.created_at.desc()).first()
+        latest_setting = Setting.query.order_by(Setting.last_active_at.desc()).first()
+    except Exception:
+        db.session.rollback()
+        return jsonify({"found": False})
+
     if not latest_history and not latest_setting:
         return jsonify({"found": False})
 
-    # 3. 둘 중 더 최근 것을 기준으로 학급 정보 결정
-    t1 = latest_history.created_at if latest_history else datetime.min
-    t2 = latest_setting.last_active_at if latest_setting and latest_setting.last_active_at else datetime.min
-    
-    if t1 >= t2:
-        target = latest_history
-    else:
-        target = latest_setting
+    t1 = naive_dt(latest_history.created_at if latest_history else None)
+    t2 = naive_dt(latest_setting.last_active_at if latest_setting else None)
+    target = latest_history if t1 >= t2 else latest_setting
 
     # 해당 학급의 최신 설정 가져오기
     setting = Setting.query.filter_by(
@@ -878,42 +891,64 @@ def save_layout():
                     n1 = seat_map.get((r, col1))
                     n2 = seat_map.get((r, col2))
                     if n1 and n2:
-                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=created_at))
+                                        db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n1, pair_name=n2, created_at=created_at))
                         db.session.add(PairHistory(school_name=school, grade=grade, class_num=class_num, name=n2, pair_name=n1, created_at=created_at))
 
     # 🚩 수동 저장 시에도 해당 학급을 '최근 활성화 학급'으로 갱신
     if setting:
         setting.last_active_at = utc_now()
 
-    db.session.commit()
-    return jsonify({"status": "success"})
+    try:
+        db.session.commit()
+        return jsonify({"status": "success"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/static/<path:path>')
 def send_static(path):
     return send_from_directory('static', path)
 
+def ensure_schema():
+    from sqlalchemy import inspect, text
+
+    db.create_all()
+    dialect = db.engine.dialect.name
+    bool_sql = 'BOOLEAN DEFAULT FALSE' if dialect == 'postgresql' else 'BOOLEAN DEFAULT 0'
+    time_sql = 'TIMESTAMP' if dialect == 'postgresql' else 'DATETIME'
+    inspector = inspect(db.engine)
+    columns_to_add = {
+        'student': [('is_transferred', bool_sql)],
+        'setting': [
+            ('last_active_at', time_sql),
+            ('prevent_same_pair', bool_sql),
+        ],
+        'seat_history': [
+            ('layout_data', 'TEXT'),
+            ('created_at', time_sql),
+        ],
+        'pair_history': [
+            ('created_at', time_sql),
+            ('pair_name', 'VARCHAR(100)'),
+        ],
+    }
+    for table_name, columns in columns_to_add.items():
+        if not inspector.has_table(table_name):
+            continue
+        existing = {col['name'] for col in inspector.get_columns(table_name)}
+        for column_name, column_sql in columns:
+            if column_name not in existing:
+                db.session.execute(text(
+                    f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}'
+                ))
+    db.session.commit()
+
+
 # 🚩 [중요] 모든 테이블 생성 및 마이그레이션 (WSGI 환경 대응)
 with app.app_context():
-    db.create_all()
     try:
-        from sqlalchemy import text
-        db.session.execute(text('ALTER TABLE student ADD COLUMN is_transferred BOOLEAN DEFAULT 0'))
-        db.session.commit()
-    except:
-        db.session.rollback()
-
-    try:
-        from sqlalchemy import text
-        db.session.execute(text('ALTER TABLE setting ADD COLUMN last_active_at DATETIME'))
-        db.session.commit()
-    except:
-        db.session.rollback()
-
-    try:
-        from sqlalchemy import text
-        db.session.execute(text('ALTER TABLE setting ADD COLUMN prevent_same_pair BOOLEAN DEFAULT 0'))
-        db.session.commit()
-    except:
+        ensure_schema()
+    except Exception:
         db.session.rollback()
 
     # 🚩 모든 테이블의 학교 이름 공백 제거 (소급 적용)
